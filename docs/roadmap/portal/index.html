@@ -1,0 +1,756 @@
+<title>Dhara Intake OS</title>
+<style>
+  /* ============ tokens: light is the base set ============ */
+  :root {
+    --ground:      #EBEEE9;
+    --ground-deep: #E2E6E0;
+    --surface:     #F7F8F5;
+    --surface-2:   #FFFFFF;
+    --ink:         #10201C;
+    --ink-2:       #4A5C57;
+    --ink-3:       #74857F;
+    --accent:      #0B5F52;
+    --accent-soft: rgba(11, 95, 82, 0.10);
+    --lamp:        #B46E18;
+    --lamp-soft:   rgba(180, 110, 24, 0.13);
+    --flag:        #B23A34;
+    --flag-soft:   rgba(178, 58, 52, 0.11);
+    --line:        rgba(16, 32, 28, 0.16);
+    --line-soft:   rgba(16, 32, 28, 0.08);
+    --shadow:      0 1px 2px rgba(16,32,28,.05), 0 14px 32px -20px rgba(16,32,28,.30);
+
+    --serif: "Iowan Old Style", "Charter", "Palatino Linotype", "Book Antiqua", Georgia, serif;
+    --sans:  "Avenir Next", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", sans-serif;
+    --mono:  ui-monospace, "SF Mono", SFMono-Regular, Menlo, "Cascadia Mono", Consolas, monospace;
+    --deva:  "Kohinoor Devanagari", "Nirmala UI", "Noto Sans Devanagari", "Mangal", sans-serif;
+
+    --measure: 66ch;
+    --pad: clamp(20px, 4vw, 48px);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground:      #0A1310;
+      --ground-deep: #070F0D;
+      --surface:     #101C18;
+      --surface-2:   #16241F;
+      --ink:         #E4EAE5;
+      --ink-2:       #9DAEA8;
+      --ink-3:       #788A84;
+      --accent:      #4FB79F;
+      --accent-soft: rgba(79, 183, 159, 0.13);
+      --lamp:        #E0A24C;
+      --lamp-soft:   rgba(224, 162, 76, 0.14);
+      --flag:        #E4796F;
+      --flag-soft:   rgba(228, 121, 111, 0.14);
+      --line:        rgba(228, 234, 229, 0.15);
+      --line-soft:   rgba(228, 234, 229, 0.07);
+      --shadow:      0 1px 2px rgba(0,0,0,.3), 0 16px 38px -22px rgba(0,0,0,.8);
+    }
+  }
+  :root[data-theme="dark"] {
+    --ground:      #0A1310;
+    --ground-deep: #070F0D;
+    --surface:     #101C18;
+    --surface-2:   #16241F;
+    --ink:         #E4EAE5;
+    --ink-2:       #9DAEA8;
+    --ink-3:       #788A84;
+    --accent:      #4FB79F;
+    --accent-soft: rgba(79, 183, 159, 0.13);
+    --lamp:        #E0A24C;
+    --lamp-soft:   rgba(224, 162, 76, 0.14);
+    --flag:        #E4796F;
+    --flag-soft:   rgba(228, 121, 111, 0.14);
+    --line:        rgba(228, 234, 229, 0.15);
+    --line-soft:   rgba(228, 234, 229, 0.07);
+    --shadow:      0 1px 2px rgba(0,0,0,.3), 0 16px 38px -22px rgba(0,0,0,.8);
+  }
+
+  /* ============ base ============ */
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 17px;
+    line-height: 1.62;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+  h1, h2, h3 { font-family: var(--serif); font-weight: 700; text-wrap: balance; margin: 0; letter-spacing: -0.018em; }
+  p { margin: 0; }
+  a { color: inherit; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+  .wrap { max-width: 1180px; margin: 0 auto; padding-inline: var(--pad); }
+  .lede { max-width: var(--measure); color: var(--ink-2); font-size: 1.06rem; }
+
+  .label {
+    font-family: var(--mono); font-size: 11px; letter-spacing: .14em;
+    text-transform: uppercase; color: var(--ink-3); font-weight: 500;
+  }
+
+  /* ============ masthead ============ */
+  .mast {
+    position: sticky; top: 0; z-index: 40;
+    background: color-mix(in srgb, var(--ground) 88%, transparent);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .mast-in { display: flex; align-items: center; gap: 24px; height: 58px; }
+  .mark { display: flex; align-items: center; gap: 9px; font-family: var(--serif); font-weight: 700; font-size: 1.06rem; letter-spacing: -.02em; }
+  .mark span { width: 9px; height: 9px; background: var(--accent); display: block; }
+  .mark em { font-style: normal; font-family: var(--mono); font-size: 10px; letter-spacing: .16em; color: var(--ink-3); text-transform: uppercase; }
+  .mast nav { margin-left: auto; display: flex; gap: 22px; }
+  .mast nav a { font-size: 13.5px; color: var(--ink-2); text-decoration: none; }
+  .mast nav a:hover { color: var(--accent); }
+  @media (max-width: 980px) { .mast nav { display: none; } .mark em { display: none; } }
+
+  /* ============ hero ============ */
+  .hero { padding: clamp(44px, 7vw, 84px) 0 clamp(36px, 5vw, 58px); }
+  .hero-grid { display: grid; grid-template-columns: 1.02fr .98fr; gap: clamp(32px, 5vw, 60px); align-items: start; }
+  @media (max-width: 980px) { .hero-grid { grid-template-columns: 1fr; } }
+
+  .eyebrow { display: flex; align-items: center; gap: 10px; margin-bottom: 22px; flex-wrap: wrap; }
+  .eyebrow .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--lamp); box-shadow: 0 0 0 4px var(--lamp-soft); }
+  h1 { font-size: clamp(2.3rem, 5.2vw, 3.7rem); line-height: 1.05; }
+  h1 .thin { display: block; color: var(--ink-2); font-style: italic; font-weight: 400; font-size: .92em; }
+  .hero p.lede { margin-top: 22px; font-size: 1.12rem; }
+
+  .flow { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 28px; align-items: center; }
+  .flow b { font-family: var(--mono); font-size: 11.5px; letter-spacing: .06em; text-transform: uppercase; font-weight: 500;
+            border: 1px solid var(--line); padding: 5px 9px; color: var(--ink-2); background: var(--surface); }
+  .flow i { color: var(--ink-3); font-style: normal; font-size: 12px; }
+
+  .cta-row { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 32px; }
+  .btn { font-family: var(--sans); font-size: 14.5px; font-weight: 600; text-decoration: none;
+         padding: 11px 20px; border: 1px solid var(--accent); transition: transform .15s ease, background .15s ease; }
+  .btn-solid { background: var(--accent); color: var(--ground); }
+  .btn-ghost { background: transparent; color: var(--accent); }
+  .btn:hover { transform: translateY(-1px); }
+  .btn-ghost:hover { background: var(--accent-soft); }
+
+  /* ============ the console panel (hero right) ============ */
+  .panel { background: var(--surface); border: 1px solid var(--line); box-shadow: var(--shadow); }
+  .panel-top { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+  .panel-top .label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .lamp { display: inline-flex; align-items: center; gap: 7px; font-family: var(--mono); font-size: 10.5px;
+          letter-spacing: .12em; text-transform: uppercase; color: var(--lamp); white-space: nowrap; }
+  .lamp b { width: 7px; height: 7px; border-radius: 50%; background: var(--lamp); animation: pulse 2.6s ease-in-out infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .3; } }
+  .panel-body { min-height: 352px; }
+  .panel-foot { display: flex; flex-wrap: wrap; gap: 14px; padding: 10px 16px; border-top: 1px solid var(--line);
+                font-family: var(--mono); font-size: 10.5px; color: var(--ink-3); letter-spacing: .04em; }
+  .panel-foot b { color: var(--ink-2); font-weight: 500; font-variant-numeric: tabular-nums; }
+  .panel-cap { margin-top: 10px; font-size: 12px; color: var(--ink-3); font-family: var(--mono); letter-spacing: .03em; }
+  .scene-dots { display: flex; gap: 6px; margin-left: auto; }
+  .scene-dots i { width: 14px; height: 2px; background: var(--line); display: block; }
+  .scene-dots i.on { background: var(--accent); }
+
+  /* --- agent call scene --- */
+  .call-hd { padding: 14px 16px; border-bottom: 1px solid var(--line); background: var(--ground-deep); display: flex; align-items: baseline; gap: 12px; }
+  .call-hd .no { font-family: var(--mono); font-size: 1.05rem; font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
+  .call-hd .when { font-size: 12.5px; color: var(--ink-2); margin-left: auto; font-family: var(--mono); }
+  .turns { padding: 14px 16px; display: grid; gap: 11px; }
+  .turn { display: grid; grid-template-columns: 46px 1fr; gap: 11px; align-items: start; font-size: 14px; }
+  .turn .w { font-family: var(--mono); font-size: 10px; letter-spacing: .09em; text-transform: uppercase; color: var(--ink-3); padding-top: 3px; }
+  .turn.ai .t { color: var(--ink); }
+  .turn.pt .t { color: var(--ink-2); }
+  .turn .t.dv { font-family: var(--deva); font-size: 15px; }
+  .trace { border-top: 1px solid var(--line); background: var(--ground-deep); padding: 12px 16px; display: grid; gap: 7px; }
+  .tc { display: grid; grid-template-columns: 13px 1fr auto; gap: 10px; align-items: center; font-family: var(--mono); font-size: 11.5px; }
+  .tc .ok { color: var(--accent); font-size: 12px; line-height: 1; }
+  .tc .nm { color: var(--ink); letter-spacing: .01em; }
+  .tc .nm em { font-style: normal; color: var(--ink-3); }
+  .tc .rs { color: var(--ink-3); font-variant-numeric: tabular-nums; }
+
+  /* --- queue scene --- */
+  .serving { padding: 15px 16px; display: flex; align-items: baseline; gap: 14px; border-bottom: 1px solid var(--line); background: var(--ground-deep); }
+  .serving .big { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 2.3rem; font-weight: 600; line-height: 1; letter-spacing: -.03em; }
+  .serving .meta { font-size: 12.5px; color: var(--ink-2); font-family: var(--mono); }
+  .row { display: grid; grid-template-columns: 52px 1fr auto; gap: 11px; align-items: center;
+         padding: 10px 16px; border-bottom: 1px solid var(--line-soft); }
+  .row.hot { background: var(--accent-soft); }
+  .row .tok { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 13px; color: var(--ink-2); }
+  .row .who { font-size: 14px; }
+  .row .who small { display: block; color: var(--ink-3); font-size: 11.5px; font-family: var(--mono); }
+  .chip { font-family: var(--mono); font-size: 10px; letter-spacing: .07em; text-transform: uppercase;
+          padding: 4px 8px; white-space: nowrap; border: 1px solid transparent; }
+  .chip.ready { color: var(--accent); background: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 30%, transparent); }
+  .chip.live  { color: var(--lamp); background: var(--lamp-soft); border-color: color-mix(in srgb, var(--lamp) 34%, transparent); }
+  .chip.flag  { color: var(--flag); background: var(--flag-soft); border-color: color-mix(in srgb, var(--flag) 32%, transparent); }
+  .chip.idle  { color: var(--ink-3); border-color: var(--line); }
+  .live-q { padding: 13px 16px; border-top: 1px solid var(--line); background: var(--ground-deep); }
+  .live-q .q { font-family: var(--deva); font-size: 15px; margin-top: 5px; }
+  .live-q .a { font-size: 13px; color: var(--ink-2); margin-top: 6px; }
+  .live-q .a b { color: var(--ink); font-weight: 600; }
+
+  /* ============ ledger rule + sections ============ */
+  section { padding: clamp(52px, 7vw, 90px) 0; }
+  .rule { display: flex; align-items: center; gap: 14px; margin-bottom: 30px; }
+  .rule::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+  .rule .idx { font-family: var(--mono); font-size: 11px; color: var(--accent); letter-spacing: .1em; }
+  .head-2 { font-size: clamp(1.62rem, 3.1vw, 2.25rem); line-height: 1.15; max-width: 21ch; }
+  .sec-intro { display: grid; grid-template-columns: 1fr 1fr; gap: clamp(20px, 4vw, 56px); align-items: end; margin-bottom: 38px; }
+  @media (max-width: 860px) { .sec-intro { grid-template-columns: 1fr; gap: 16px; } }
+
+  /* ============ strip ============ */
+  .strip { border-block: 1px solid var(--line); background: var(--surface); }
+  .strip-in { display: grid; grid-template-columns: repeat(4, 1fr); }
+  .strip-in > div { padding: 22px var(--pad); border-right: 1px solid var(--line-soft); }
+  .strip-in > div:last-child { border-right: 0; }
+  .strip .v { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 1.5rem; font-weight: 600; letter-spacing: -.02em; }
+  .strip .k { font-size: 12.5px; color: var(--ink-2); margin-top: 3px; line-height: 1.45; }
+  @media (max-width: 860px) { .strip-in { grid-template-columns: 1fr 1fr; } .strip-in > div:nth-child(2n) { border-right: 0; }
+    .strip-in > div:nth-child(-n+2) { border-bottom: 1px solid var(--line-soft); } }
+
+  /* ============ journey rail ============ */
+  .rail { display: grid; grid-template-columns: repeat(6, 1fr); border: 1px solid var(--line); background: var(--surface); }
+  .step { padding: 20px 18px; border-right: 1px solid var(--line-soft); }
+  .step:last-child { border-right: 0; }
+  .step .n { font-family: var(--mono); font-size: 11px; color: var(--accent); letter-spacing: .08em; }
+  .step h3 { font-size: 1.06rem; margin: 9px 0 7px; }
+  .step p { font-size: 13.5px; color: var(--ink-2); line-height: 1.5; }
+  .step .tag { margin-top: 12px; display: inline-block; font-family: var(--mono); font-size: 10px; letter-spacing: .08em;
+               text-transform: uppercase; color: var(--ink-3); border-top: 1px solid var(--line); padding-top: 8px; }
+  @media (max-width: 1020px) { .rail { grid-template-columns: repeat(3, 1fr); }
+    .step:nth-child(3n) { border-right: 0; } .step:nth-child(-n+3) { border-bottom: 1px solid var(--line-soft); } }
+  @media (max-width: 640px) { .rail { grid-template-columns: 1fr 1fr; }
+    .step { border-right: 1px solid var(--line-soft); border-bottom: 1px solid var(--line-soft); }
+    .step:nth-child(2n) { border-right: 0; } }
+
+  /* ============ agent layer ============ */
+  .agent { display: grid; grid-template-columns: .95fr 1.05fr; gap: clamp(28px, 5vw, 54px); align-items: start; }
+  @media (max-width: 940px) { .agent { grid-template-columns: 1fr; } }
+  .tools { border: 1px solid var(--line); background: var(--surface); }
+  .tools .th { padding: 12px 16px; border-bottom: 1px solid var(--line); display: flex; gap: 10px; align-items: center; }
+  .tool { display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: baseline;
+          padding: 12px 16px; border-bottom: 1px solid var(--line-soft); }
+  .tool:last-child { border-bottom: 0; }
+  .tool .fn { font-family: var(--mono); font-size: 12.5px; color: var(--ink); }
+  .tool .fn em { font-style: normal; color: var(--ink-3); }
+  .tool .ds { font-size: 13px; color: var(--ink-2); grid-column: 1 / -1; margin-top: -2px; }
+  .tool .gd { font-family: var(--mono); font-size: 10px; letter-spacing: .07em; text-transform: uppercase;
+              color: var(--accent); border: 1px solid color-mix(in srgb, var(--accent) 32%, transparent);
+              background: var(--accent-soft); padding: 3px 7px; white-space: nowrap; }
+  .tool .gd.warn { color: var(--flag); border-color: color-mix(in srgb, var(--flag) 32%, transparent); background: var(--flag-soft); }
+
+  /* ============ evidence ============ */
+  .ev { display: grid; grid-template-columns: 1.05fr .95fr; gap: clamp(28px, 5vw, 54px); align-items: center; }
+  @media (max-width: 940px) { .ev { grid-template-columns: 1fr; } }
+  .ev-card { border: 1px solid var(--line); background: var(--surface); box-shadow: var(--shadow); }
+  .ev-card .hd { padding: 12px 16px; border-bottom: 1px solid var(--line); }
+  .field { padding: 15px 16px; border-bottom: 1px solid var(--line-soft); }
+  .field:last-child { border-bottom: 0; }
+  .field .top { display: flex; align-items: baseline; gap: 10px; }
+  .field .key { font-family: var(--mono); font-size: 11.5px; color: var(--ink-3); letter-spacing: .04em; }
+  .field .val { font-size: 1.02rem; font-weight: 600; margin-left: auto; }
+  .conf { display: flex; align-items: center; gap: 9px; margin-top: 10px; }
+  .bar { flex: 1; height: 3px; background: var(--line-soft); position: relative; }
+  .bar i { position: absolute; inset: 0 auto 0 0; background: var(--accent); display: block; }
+  .conf .pct { font-family: var(--mono); font-size: 11px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+  .prov { margin-top: 10px; padding-left: 11px; border-left: 2px solid var(--line); font-size: 13px; color: var(--ink-2); }
+  .prov .said { font-family: var(--deva); color: var(--ink); }
+  .prov .by { display: block; margin-top: 5px; font-family: var(--mono); font-size: 10.5px; letter-spacing: .06em;
+              text-transform: uppercase; color: var(--ink-3); }
+  .bullets { list-style: none; padding: 0; margin: 22px 0 0; display: grid; gap: 14px; }
+  .bullets li { display: grid; grid-template-columns: 18px 1fr; gap: 12px; font-size: 15px; color: var(--ink-2); }
+  .bullets li b { color: var(--ink); font-weight: 600; }
+  .bullets li::before { content: ""; width: 7px; height: 7px; background: var(--accent); margin-top: 9px; }
+
+  /* ============ card grids ============ */
+  .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: var(--line); border: 1px solid var(--line); }
+  .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--line); border: 1px solid var(--line); }
+  .cell { background: var(--surface); padding: 24px 22px; }
+  .cell h3 { font-size: 1.12rem; margin-bottom: 9px; }
+  .cell p { font-size: 14px; color: var(--ink-2); line-height: 1.55; }
+  .cell .kicker { font-family: var(--mono); font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); }
+  .cell ul { margin: 12px 0 0; padding-left: 17px; font-size: 13.5px; color: var(--ink-2); line-height: 1.72; }
+  @media (max-width: 1000px) { .grid-4 { grid-template-columns: 1fr 1fr; } .grid-3 { grid-template-columns: 1fr; } }
+  @media (max-width: 560px) { .grid-4 { grid-template-columns: 1fr; } }
+
+  /* ============ tiers ============ */
+  .tiers { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--line); border: 1px solid var(--line); }
+  @media (max-width: 920px) { .tiers { grid-template-columns: 1fr; } }
+  .tier { background: var(--surface); padding: 26px 24px; display: flex; flex-direction: column; }
+  .tier.feature { background: var(--surface-2); }
+  .tier .code { font-family: var(--mono); font-size: 10.5px; letter-spacing: .13em; color: var(--accent); text-transform: uppercase; }
+  .tier h3 { font-size: 1.38rem; margin: 8px 0 4px; }
+  .tier .who { font-size: 13.5px; color: var(--ink-3); }
+  .tier .price { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 1.28rem; font-weight: 600;
+                 margin: 18px 0 4px; letter-spacing: -.02em; }
+  .tier .price small { display: block; font-size: 11.5px; font-weight: 400; color: var(--ink-3); letter-spacing: .03em; margin-top: 4px; font-family: var(--sans); }
+  .tier ul { list-style: none; padding: 0; margin: 18px 0 0; display: grid; gap: 9px; font-size: 14px; color: var(--ink-2); }
+  .tier ul li { display: grid; grid-template-columns: 14px 1fr; gap: 10px; align-items: start; }
+  .tier ul li::before { content: "+"; font-family: var(--mono); color: var(--accent); font-size: 13px; line-height: 1.5; }
+  .tier .cost { margin-top: auto; padding-top: 20px; }
+  .tier .cost span { display: block; border-top: 1px solid var(--line); padding-top: 12px; font-family: var(--mono);
+                     font-size: 11px; color: var(--ink-3); letter-spacing: .03em; }
+  .tier .cost b { color: var(--ink-2); font-weight: 500; }
+  .tier-note { margin-top: 18px; font-size: 13.5px; color: var(--ink-3); font-family: var(--mono); letter-spacing: .02em; }
+
+  /* ============ agentic verdict ============ */
+  .verdict { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--line); border: 1px solid var(--line); }
+  @media (max-width: 860px) { .verdict { grid-template-columns: 1fr; } }
+  .verdict > div { background: var(--surface); padding: 26px 24px; }
+  .verdict h3 { font-size: 1.08rem; margin-bottom: 14px; display: flex; align-items: center; gap: 9px; }
+  .verdict .mk { font-family: var(--mono); font-size: 11px; padding: 2px 7px; border: 1px solid currentColor; letter-spacing: .08em; text-transform: uppercase; }
+  .verdict .real h3 { color: var(--accent); }
+  .verdict .fluff h3 { color: var(--flag); }
+  .verdict ul { list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; font-size: 14.5px; color: var(--ink-2); }
+  .verdict ul li b { color: var(--ink); font-weight: 600; }
+  .pull { margin-top: 28px; border-left: 3px solid var(--accent); padding: 4px 0 4px 20px; font-family: var(--serif);
+          font-size: clamp(1.1rem, 2vw, 1.32rem); line-height: 1.44; max-width: 62ch; }
+
+  /* ============ india / world ============ */
+  .world { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--line); border: 1px solid var(--line); }
+  @media (max-width: 860px) { .world { grid-template-columns: 1fr; } }
+  .world > div { background: var(--surface); padding: 26px 24px; }
+  .world h3 { font-size: 1.18rem; margin: 10px 0 12px; }
+  .world ul { list-style: none; padding: 0; margin: 0; display: grid; gap: 11px; font-size: 14.5px; color: var(--ink-2); }
+  .world ul li { display: grid; grid-template-columns: 62px 1fr; gap: 12px; align-items: baseline; }
+  .world ul li em { font-style: normal; font-family: var(--mono); font-size: 10px; letter-spacing: .08em;
+                    text-transform: uppercase; color: var(--ink-3); }
+  .world ul li b { color: var(--ink); font-weight: 600; }
+
+  /* ============ build status ============ */
+  .ms { border: 1px solid var(--line); background: var(--surface); }
+  .ms-row { display: grid; grid-template-columns: 78px 1fr 132px; gap: 16px; align-items: center; padding: 13px 18px;
+            border-bottom: 1px solid var(--line-soft); }
+  .ms-row:last-child { border-bottom: 0; }
+  .ms-row .m { font-family: var(--mono); font-size: 12px; color: var(--accent); letter-spacing: .05em; }
+  .ms-row .t { font-size: 14.5px; }
+  .ms-row .t small { display: block; color: var(--ink-3); font-size: 12.5px; }
+  .ms-row .s { font-family: var(--mono); font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; text-align: right; color: var(--ink-3); }
+  .ms-row .s.now { color: var(--lamp); }
+  @media (max-width: 640px) { .ms-row { grid-template-columns: 58px 1fr; } .ms-row .s { grid-column: 2; text-align: left; } }
+
+  /* ============ safety ============ */
+  .safety { border: 1px solid var(--accent); background: var(--accent-soft); padding: clamp(24px, 4vw, 38px); }
+  .safety h2 { font-size: clamp(1.38rem, 2.5vw, 1.8rem); max-width: 27ch; }
+  .safety .two { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 22px; }
+  @media (max-width: 780px) { .safety .two { grid-template-columns: 1fr; } }
+  .safety .two > div { font-size: 14.5px; color: var(--ink-2); }
+  .safety .two b { display: block; color: var(--ink); font-family: var(--mono); font-size: 11px; letter-spacing: .1em;
+                   text-transform: uppercase; margin-bottom: 7px; }
+
+  /* ============ footer ============ */
+  footer { border-top: 1px solid var(--line); background: var(--surface); padding: clamp(40px, 6vw, 66px) 0 40px; }
+  .foot-grid { display: grid; grid-template-columns: 1.2fr 1fr; gap: 36px; align-items: start; }
+  @media (max-width: 800px) { .foot-grid { grid-template-columns: 1fr; } }
+  footer h2 { font-size: clamp(1.45rem, 3vw, 2rem); }
+  .foot-meta { display: flex; flex-wrap: wrap; gap: 18px; margin-top: 40px; padding-top: 18px; border-top: 1px solid var(--line-soft);
+               font-family: var(--mono); font-size: 11px; color: var(--ink-3); letter-spacing: .05em; }
+
+  /* ============ reveal ============ */
+  .rv { opacity: 0; transform: translateY(14px); transition: opacity .6s ease, transform .6s ease; }
+  .rv.in { opacity: 1; transform: none; }
+  @media (prefers-reduced-motion: reduce) {
+    .rv { opacity: 1; transform: none; transition: none; }
+    .lamp b { animation: none; }
+    .btn { transition: none; }
+  }
+</style>
+
+<header class="mast">
+  <div class="wrap mast-in">
+    <div class="mark"><span></span>DharaIntake <em>Clinical Front AI</em></div>
+    <nav>
+      <a href="#journey">Journey</a>
+      <a href="#agent">Agent layer</a>
+      <a href="#evidence">Evidence</a>
+      <a href="#tiers">Tiers</a>
+      <a href="#agentic">Agentic</a>
+      <a href="#world">India &amp; beyond</a>
+      <a href="#status">Status</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <div class="wrap hero">
+    <div class="hero-grid">
+      <div>
+        <div class="eyebrow"><span class="dot"></span><span class="label">Clinical Front AI &middot; built in India, made to travel</span></div>
+        <h1>The AI that runs the front of the clinic.<span class="thin">Books, listens, verifies, follows up.</span></h1>
+        <p class="lede">An agentic intake platform for healthcare. It answers the line at 9pm and books the appointment. It takes the patient's history in their own language and shows its working. It hands the doctor a verified record, and it calls back after the procedure. One engine, one evidence trail, priced per completed interaction at numbers an Indian clinic can actually pay.</p>
+        <div class="flow">
+          <b>Book</b><i>&rarr;</i><b>Remind</b><i>&rarr;</i><b>Intake</b><i>&rarr;</i><b>Queue</b><i>&rarr;</i><b>Review</b><i>&rarr;</i><b>Follow&#8209;up</b>
+        </div>
+        <div class="cta-row">
+          <a class="btn btn-solid" href="#tiers">See the three tiers</a>
+          <a class="btn btn-ghost" href="#agentic">Our take on agentic</a>
+        </div>
+      </div>
+
+      <div>
+        <div class="panel">
+          <div class="panel-top">
+            <span class="label" id="pTitle">Concierge line &middot; inbound &middot; after hours</span>
+            <span class="lamp"><b></b>Live</span>
+          </div>
+          <div class="panel-body" id="pBody">
+            <div class="call-hd">
+              <span class="no">+91 98••• ••214</span>
+              <span class="when">21:12 IST</span>
+            </div>
+            <div class="turns">
+              <div class="turn ai"><span class="w">Agent</span><span class="t">Namaste, Sunrise Diagnostics. How can I help?</span></div>
+              <div class="turn pt"><span class="w">Caller</span><span class="t dv">कल सुबह का अपॉइंटमेंट मिलेगा क्या?</span></div>
+              <div class="turn ai"><span class="w">Agent</span><span class="t">Dr. Kulkarni has morning tokens tomorrow. Shall I book the 10:30 band?</span></div>
+              <div class="turn pt"><span class="w">Caller</span><span class="t dv">हाँ, ठीक है।</span></div>
+              <div class="turn ai"><span class="w">Agent</span><span class="t">Booked — token 27, 10:30 to 11:15. I&rsquo;ve sent the details on WhatsApp with a link to give your history before you come.</span></div>
+            </div>
+            <div class="trace">
+              <div class="tc"><span class="ok">&#10003;</span><span class="nm">find_availability<em>(resource: kulkarni, date: tomorrow)</em></span><span class="rs">0.4s</span></div>
+              <div class="tc"><span class="ok">&#10003;</span><span class="nm">book_appointment<em>(token: 27, band: 10:30)</em></span><span class="rs">logged</span></div>
+              <div class="tc"><span class="ok">&#10003;</span><span class="nm">send_confirmation<em>(channel: whatsapp, lang: hi)</em></span><span class="rs">sent</span></div>
+            </div>
+          </div>
+          <div class="panel-foot">
+            <span>Cost <b id="pCost">&#8377;7.20</b></span>
+            <span>Tier <b id="pTier">T3 concierge</b></span>
+            <span>Every tool call <b>logged as evidence</b></span>
+            <span class="scene-dots" id="dots"><i class="on"></i><i></i><i></i></span>
+          </div>
+        </div>
+        <p class="panel-cap">The same platform, three surfaces — the after-hours line, the live queue, the nurse&rsquo;s review.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="strip">
+    <div class="wrap" style="padding-inline:0;">
+      <div class="strip-in">
+        <div><div class="v">&#8377;1&ndash;5</div><div class="k">Target AI cost per completed intake in hybrid mode &mdash; the number that decides who we can serve</div></div>
+        <div><div class="v">4</div><div class="k">Interaction modes &mdash; touch, hybrid voice, conversational, staff-assisted &mdash; one output contract</div></div>
+        <div><div class="v">3&#8202;+</div><div class="k">Languages at launch: English, Hindi, Marathi. New languages are content, not code</div></div>
+        <div><div class="v">100%</div><div class="k">Clinical records passed through human review before they leave the building</div></div>
+      </div>
+    </div>
+  </div>
+
+  <section id="journey" class="wrap rv">
+    <div class="rule"><span class="idx">01</span><span class="label">The patient journey</span></div>
+    <div class="sec-intro">
+      <h2 class="head-2">One engine runs the whole visit.</h2>
+      <p class="lede">Most products do booking <em>or</em> intake. The compounding value is in the seam: the reminder that carries the history link, the check-in that opens the intake, the queue chip that tells the doctor the history is already waiting, the follow-up call that reopens the same record weeks later.</p>
+    </div>
+    <div class="rail">
+      <div class="step"><div class="n">01</div><h3>Book</h3><p>Numbered tokens with time bands, or timed slots where that&rsquo;s the norm. Web, WhatsApp, kiosk, or a real conversation on the phone.</p><span class="tag">OTP verified</span></div>
+      <div class="step"><div class="n">02</div><h3>Remind</h3><p>Confirmation, day-before, and a two-hour nudge carrying the intake link: finish your history before you arrive.</p><span class="tag">WhatsApp / SMS</span></div>
+      <div class="step"><div class="n">03</div><h3>Intake</h3><p>History in the patient&rsquo;s language, by voice or touch. Every answer is read back and confirmed before it is committed.</p><span class="tag">Voice + touch</span></div>
+      <div class="step"><div class="n">04</div><h3>Queue</h3><p>Check in with the token QR. The board shows who has arrived, whose history is ready, and which arrivals carry red flags.</p><span class="tag">Live board</span></div>
+      <div class="step"><div class="n">05</div><h3>Review</h3><p>A nurse sees confidence, provenance, and missing fields, corrects in one click, and approves. Only then does it export.</p><span class="tag">Human gate</span></div>
+      <div class="step"><div class="n">06</div><h3>Follow&#8209;up</h3><p>Post-procedure and medication check-ins by call or message, on the same workflows and the same evidence trail.</p><span class="tag">Scheduled</span></div>
+    </div>
+  </section>
+
+  <section id="agent" class="wrap rv">
+    <div class="rule"><span class="idx">02</span><span class="label">The agent layer</span></div>
+    <div class="agent">
+      <div>
+        <h2 class="head-2">An agent that acts, on rails you can audit.</h2>
+        <p class="lede" style="margin-top:16px;">The difference between an assistant that discusses your appointment and one that books it is tool use. Our agent doesn&rsquo;t improvise against your calendar — it calls a fixed set of our own endpoints, each one authenticated, rate-limited, budget-capped, and written into the evidence graph the moment it fires.</p>
+        <ul class="bullets">
+          <li><div><b>Grounded, not remembered.</b> Fees, timings, directions, and preparation instructions come from the clinic&rsquo;s approved knowledge base — never from the model&rsquo;s memory.</div></li>
+          <li><div><b>Verified before it acts.</b> Booking tools stay locked until the caller is verified. A failed tool call is read back and confirmed, never guessed past.</div></li>
+          <li><div><b>Escalation is a first-class outcome.</b> Anything clinical, ambiguous, or upset goes to a human with the context attached. That is a success path, not a failure.</div></li>
+        </ul>
+      </div>
+      <div class="tools">
+        <div class="th"><span class="label">Tool registry &mdash; the complete set the model may call</span></div>
+        <div class="tool"><span class="fn">find_availability<em>()</em></span><span class="gd">Read only</span><span class="ds">Open tokens and slots for a doctor, service, or day.</span></div>
+        <div class="tool"><span class="fn">book_appointment<em>()</em></span><span class="gd warn">Verification required</span><span class="ds">Creates the appointment, idempotently, with the booking conversation attached.</span></div>
+        <div class="tool"><span class="fn">reschedule &middot; cancel<em>()</em></span><span class="gd warn">Verification required</span><span class="ds">Moves or releases a token and notifies the patient on their channel.</span></div>
+        <div class="tool"><span class="fn">get_appointment_status<em>()</em></span><span class="gd">Read only</span><span class="ds">&ldquo;When is my slot?&rdquo;, &ldquo;Is my report ready?&rdquo; — answered from the record.</span></div>
+        <div class="tool"><span class="fn">kb_search<em>()</em></span><span class="gd">Grounded</span><span class="ds">Clinic-approved answers only, returned with the article it came from.</span></div>
+        <div class="tool"><span class="fn">escalate_to_human<em>()</em></span><span class="gd">Always available</span><span class="ds">Transfer or callback ticket, with the transcript and everything gathered so far.</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="evidence" class="wrap rv">
+    <div class="rule"><span class="idx">03</span><span class="label">The difference that compounds</span></div>
+    <div class="ev">
+      <div>
+        <h2 class="head-2">Every field can show its work.</h2>
+        <p class="lede" style="margin-top:16px;">Voice agents hand you a call summary and ask for trust. We hand you a record where each value carries the words it came from, the confidence behind it, what it cost, and the name of whoever confirmed it. That is what gets clinical staff to sign off — and it quietly becomes the most valuable asset we own.</p>
+        <ul class="bullets">
+          <li><div><b>Provenance per field.</b> The utterance, the audio, how it was interpreted, and which model and prompt version did it.</div></li>
+          <li><div><b>Append-only.</b> Corrections are new events, never overwrites. The trail survives an audit and a regulator.</div></li>
+          <li><div><b>Corrections become tests.</b> Every nurse fix is mined into the evaluation suite that gates the next release. The system gets measurably better at the questions your clinic actually asks.</div></li>
+        </ul>
+      </div>
+      <div class="ev-card">
+        <div class="hd"><span class="label">Intake #4127 &middot; OPD General v1.3 &middot; Marathi</span></div>
+        <div class="field">
+          <div class="top"><span class="key">chief_complaint</span><span class="val">Cough</span></div>
+          <div class="conf"><span class="label">conf</span><span class="bar"><i style="width:92%"></i></span><span class="pct">0.92</span></div>
+          <div class="prov">Patient said <span class="said">&ldquo;पाच दिवसांपासून खोकला आहे&rdquo;</span><span class="by">Voice &middot; Marathi &middot; confirmed by patient</span></div>
+        </div>
+        <div class="field">
+          <div class="top"><span class="key">duration_days</span><span class="val">5</span></div>
+          <div class="conf"><span class="label">conf</span><span class="bar"><i style="width:96%"></i></span><span class="pct">0.96</span></div>
+          <div class="prov">Parsed deterministically &mdash; no model was called<span class="by">Numeral words &middot; Marathi &middot; &#8377;0.00</span></div>
+        </div>
+        <div class="field">
+          <div class="top"><span class="key">current_medications</span><span class="val" style="color:var(--flag)">Corrected</span></div>
+          <div class="conf"><span class="label">conf</span><span class="bar"><i style="width:58%; background:var(--flag)"></i></span><span class="pct">0.58</span></div>
+          <div class="prov">&ldquo;Metformin&rdquo; &rarr; &ldquo;Metformin 500mg twice daily&rdquo;<span class="by">Reviewed by Sr. Nurse Deshmukh &middot; 11:04</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="wrap rv">
+    <div class="rule"><span class="idx">04</span><span class="label">Four ways in, one record out</span></div>
+    <div class="sec-intro">
+      <h2 class="head-2">Voice where it helps. Touch where it&rsquo;s safer.</h2>
+      <p class="lede">A crowded OPD is not a quiet demo room. Relatives answer for patients, three languages collide in one sentence, and the ceiling fan drowns the microphone. Every mode below produces the identical structured output, so a clinic can choose per workflow — or fall back mid-question without losing the session.</p>
+    </div>
+    <div class="grid-4">
+      <div class="cell"><div class="kicker">Mode 01</div><h3>Touch-first</h3><p>Icons, large buttons, short recorded questions. Cheapest, most reliable, and the automatic fallback whenever voice struggles.</p></div>
+      <div class="cell"><div class="kicker">Mode 02 &middot; default</div><h3>Hybrid voice</h3><p>The patient speaks, the screen shows what was understood, the patient confirms. Interpretation, not open conversation.</p></div>
+      <div class="cell"><div class="kicker">Mode 03 &middot; premium</div><h3>Conversational</h3><p>Natural realtime speech for phone calls, elderly patients, and follow-ups. Hard-capped per session by design.</p></div>
+      <div class="cell"><div class="kicker">Mode 04</div><h3>Staff-assisted</h3><p>The nurse asks; the system listens, structures, and flags what&rsquo;s missing. Often the safest way into a hospital.</p></div>
+    </div>
+  </section>
+
+  <section id="tiers" class="wrap rv">
+    <div class="rule"><span class="idx">05</span><span class="label">Pricing as architecture</span></div>
+    <div class="sec-intro">
+      <h2 class="head-2">Affordability isn&rsquo;t a discount. It&rsquo;s a routing decision.</h2>
+      <p class="lede">Conversation-first products burn premium voice minutes on every interaction, which is why they cannot serve a clinic charging &#8377;200 a consultation. Our router spends nothing on a tapped answer, a fraction of a rupee on a parsed one, and reaches for premium models only where they earn it.</p>
+    </div>
+    <div class="tiers">
+      <div class="tier">
+        <div class="code">T1</div><h3>Front Desk Lite</h3><div class="who">Single-doctor clinics, diagnostic front desks</div>
+        <div class="price">&#8377;1,500&ndash;5,000<small>per month, or &#8377;2&ndash;5 per completed interaction</small></div>
+        <ul><li>Token booking, live queue, check-in</li><li>Reminders, no-show win-backs, recalls</li><li>Touch intake in three languages</li><li>Review console and structured export</li></ul>
+        <div class="cost"><span>Our AI cost: <b>near zero</b> &mdash; deterministic flows, cached prompts</span></div>
+      </div>
+      <div class="tier feature">
+        <div class="code">T2 &middot; where most clinics start</div><h3>Voice</h3><div class="who">OPD clinics, diagnostic centres, camps</div>
+        <div class="price">&#8377;5&ndash;20<small>per completed reviewed intake, plus a modest platform fee</small></div>
+        <ul><li>Everything in Front Desk Lite</li><li>Hybrid voice intake with confirmation</li><li>Radiology, OPD, and camp workflow packs</li><li>Cost-per-intake dashboard and budgets</li></ul>
+        <div class="cost"><span>Our AI cost: <b>&#8377;1&ndash;5</b> per intake, by design</span></div>
+      </div>
+      <div class="tier">
+        <div class="code">T3</div><h3>Agentic Concierge</h3><div class="who">Multi-doctor practices, diagnostic chains, hospitals</div>
+        <div class="price">Platform fee + usage<small>premium per interaction, call minutes passed through</small></div>
+        <ul><li>Everything in Voice</li><li>24/7 phone and WhatsApp front door that books</li><li>Grounded answers from your knowledge base</li><li>Outbound recall and win-back campaigns</li></ul>
+        <div class="cost"><span>Our AI cost: <b>metered live</b>, hard-capped per session and per month</span></div>
+      </div>
+    </div>
+    <p class="tier-note">Tiers are configuration &mdash; routing policy, feature flags, budget caps. Not different products, not a migration. A clinic can run the concierge on its phone line and keep the kiosk deterministic, in the same account, on the same day.</p>
+  </section>
+
+  <section id="agentic" class="wrap rv">
+    <div class="rule"><span class="idx">06</span><span class="label">The agentic question</span></div>
+    <div class="sec-intro">
+      <h2 class="head-2">Agentic, without the agent tax.</h2>
+      <p class="lede">&ldquo;Agentic&rdquo; is doing a great deal of work in this market right now. Here is exactly where we think the value sits and where the fluff starts — because that judgement is the product. We took the capability and refused the runtime.</p>
+    </div>
+    <div class="verdict">
+      <div class="real">
+        <h3><span class="mk">Keep</span>What is genuinely useful</h3>
+        <ul>
+          <li><b>Tool use.</b> The agent books, reschedules, and checks status by calling our audited endpoints. Capability, not conversation.</li>
+          <li><b>Open-domain answers.</b> Patients ask about parking, fasting, and fees. A scripted tree dead-ends; retrieval over clinic-approved content does not.</li>
+          <li><b>Multi-step orchestration.</b> Call, no answer, WhatsApp, retry tomorrow, stop on opt-out — genuinely worth automating across channels.</li>
+        </ul>
+      </div>
+      <div class="fluff">
+        <h3><span class="mk">Refuse</span>What we will not buy into</h3>
+        <ul>
+          <li><b>Hosted agent runtimes.</b> A production agent on a managed platform starts around $500&ndash;2,000 a month before a single voice minute. That floor alone ends the affordability story for everyone we want to serve.</li>
+          <li><b>Autonomous loops on clinical data.</b> Determinism, auditability, and cost control <em>are</em> the product. A self-directed loop dissolves all three.</li>
+          <li><b>Framework lock-in.</b> We already own the session engine, the state machine, and the tool layer. Renting a second one is a tax, not a capability.</li>
+        </ul>
+      </div>
+    </div>
+    <p class="pull">Every tool call the model makes is one of our endpoints, logged as evidence, inside our budget cap. The model is a supplier &mdash; Google, OpenAI, or whoever wins next quarter &mdash; never the architecture.</p>
+  </section>
+
+  <section class="wrap rv">
+    <div class="rule"><span class="idx">07</span><span class="label">What ships in the box</span></div>
+    <div class="sec-intro">
+      <h2 class="head-2">Workflow packs, written by clinicians, versioned like software.</h2>
+      <p class="lede">A pack is a complete intake: the questions, the branching, the safety rules, the summary format, and the export schema — in every supported language, with its own test suite. Admins adapt them in a visual builder; nobody writes code to change a question.</p>
+    </div>
+    <div class="grid-3">
+      <div class="cell"><div class="kicker">Pack 01</div><h3>Radiology intake</h3><p>The history a radiologist actually wants, collected before the scan.</p>
+        <ul><li>MRI safety: implants, clips, claustrophobia</li><li>CT contrast allergy and prior reactions</li><li>Pregnancy screening, asked privately</li><li>Prior imaging upload and urgency marker</li></ul></div>
+      <div class="cell"><div class="kicker">Pack 02</div><h3>OPD general</h3><p>Chief complaint through to a department suggestion staff confirm.</p>
+        <ul><li>Symptom clusters with branching follow-ups</li><li>Conditions, medications, allergies</li><li>Red flags routed to staff, never to advice</li><li>A doctor-ready summary on one page</li></ul></div>
+      <div class="cell"><div class="kicker">Pack 03</div><h3>Camp &amp; field survey</h3><p>Built for noise, low literacy, shared devices, and no signal.</p>
+        <ul><li>Touch-biased with operator assist everywhere</li><li>Offline capture with evening sync</li><li>Screening eligibility and referral capture</li><li>Structured export to sheets or an API</li></ul></div>
+    </div>
+  </section>
+
+  <section id="world" class="wrap rv">
+    <div class="rule"><span class="idx">08</span><span class="label">India first, by choice</span></div>
+    <div class="sec-intro">
+      <h2 class="head-2">Built for the hardest room. It travels well from there.</h2>
+      <p class="lede">We are not building for India because it is a smaller market to start in. We are building here because the Indian OPD imposes constraints — noise, code-switching, low literacy, shared devices, thin bandwidth, and brutal price sensitivity — that most voice products quietly assume away. A system that works at 10&nbsp;dB signal-to-noise on a &#8377;6,000 phone is not a limited system. It is a hardened one.</p>
+    </div>
+    <div class="world">
+      <div>
+        <span class="label">What India forces us to solve</span>
+        <h3>Constraints as a design brief</h3>
+        <ul>
+          <li><em>Noise</em><span><b>Touch fallback on every question</b>, short answer windows, confirmation before commit.</span></li>
+          <li><em>Language</em><span><b>Code-switching and proxy speakers</b> as first-class test cases, not edge cases.</span></li>
+          <li><em>Queues</em><span><b>Tokens and walk-ins</b> modelled properly, alongside timed slots.</span></li>
+          <li><em>Price</em><span><b>Cost per completed interaction</b> as a headline metric the customer can see.</span></li>
+          <li><em>Network</em><span><b>Offline capture with sync</b>, because camps and rural clinics lose signal.</span></li>
+        </ul>
+      </div>
+      <div>
+        <span class="label">Why it generalises</span>
+        <h3>The same engine, other markets</h3>
+        <ul>
+          <li><em>Content</em><span>New languages and regions are <b>packs and language files</b>, not forks of the product.</span></li>
+          <li><em>Scheduling</em><span>Slot mode is already in the model &mdash; <b>Western practices are the easy case</b>, not a rewrite.</span></li>
+          <li><em>Standards</em><span><b>FHIR QuestionnaireResponse</b> mapping and adapter framework for EMR integration.</span></li>
+          <li><em>Reach</em><span>WhatsApp is the front door across <b>South Asia, the Gulf, Africa, and Latin America</b>.</span></li>
+          <li><em>Trust</em><span>Consent, retention, residency, and audit built for <b>DPDP</b> &mdash; the same shape as GDPR and HIPAA obligations.</span></li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="wrap rv">
+    <div class="rule"><span class="idx">09</span><span class="label">Under the surface</span></div>
+    <div class="grid-4">
+      <div class="cell"><div class="kicker">Workflow DSL</div><h3>Questions as data</h3><p>Flows are versioned documents, not code. A published version is frozen, and every intake records exactly which version collected it.</p></div>
+      <div class="cell"><div class="kicker">Cost router</div><h3>Cheapest rung first</h3><p>Touch is free, deterministic parsing is free, a model is called only when the answer is genuinely ambiguous. Budgets stop spend, never capture.</p></div>
+      <div class="cell"><div class="kicker">Eval harness</div><h3>Tested like software</h3><p>Noisy audio, code-switching, proxy speakers, contradictions, and adversarial medical questions run against every pack before release and every model change.</p></div>
+      <div class="cell"><div class="kicker">Degradation</div><h3>Capture never fails</h3><p>If every AI provider is down, the kiosk still collects the history by touch. That is a design rule with tests behind it, not a fallback we hope works.</p></div>
+    </div>
+  </section>
+
+  <section class="wrap rv">
+    <div class="safety">
+      <span class="label">The boundary</span>
+      <h2 style="margin-top:12px;">We collect, structure, and verify. We do not diagnose.</h2>
+      <div class="two">
+        <div><b>What the system does</b>Collects patient-provided information, structures it, flags what staff should look at, and routes it for review. Department suggestions are routing assistance and always require staff confirmation. Red flags go to a human, never back to the patient as advice.</div>
+        <div><b>How it is enforced</b>Not a disclaimer &mdash; an architecture. Output schemas have no field for a diagnosis, generated text is template-bound and filtered, and release gates include adversarial tests for medical advice. Consent is a state the session cannot skip.</div>
+      </div>
+    </div>
+  </section>
+
+  <section id="status" class="wrap rv">
+    <div class="rule"><span class="idx">10</span><span class="label">Build status &mdash; honestly</span></div>
+    <div class="sec-intro">
+      <h2 class="head-2">What&rsquo;s built, what&rsquo;s next, what&rsquo;s planned.</h2>
+      <p class="lede">The speech pipeline, the server-relayed realtime voice, and the native call experience are proven in a working demo today. The platform below is being built in sequence, and every milestone ends with something a clinic can actually use. We would rather show you this table than a wall of logos we do not have yet.</p>
+    </div>
+    <div class="ms">
+      <div class="ms-row"><span class="m">Proven</span><span class="t">Realtime voice pipeline<small>Server-relayed Gemini Live and OpenAI Realtime, mobile audio, native ring, hard cost caps</small></span><span class="s">Working demo</span></div>
+      <div class="ms-row"><span class="m">M1</span><span class="t">Workflow spine<small>Multi-tenant engine, versioned flows, consent, evidence graph, structured output</small></span><span class="s now">In build</span></div>
+      <div class="ms-row"><span class="m">M1.5</span><span class="t">Appointments and queue<small>Token scheduling, booking workflows, live queue board, check-in stitch</small></span><span class="s">Next</span></div>
+      <div class="ms-row"><span class="m">M2&ndash;M3</span><span class="t">Hybrid voice and review console<small>Three languages, nurse corrections, reminders, webhook and PDF export</small></span><span class="s">Planned</span></div>
+      <div class="ms-row"><span class="m">M4&ndash;M6</span><span class="t">Cost dashboards, packs, pilot hardening<small>Cost per completed intake, visual builder, first diagnostic-centre pilot</small></span><span class="s">Planned</span></div>
+      <div class="ms-row"><span class="m">M7&ndash;M9</span><span class="t">Telephony, agentic concierge, enterprise<small>Outbound calls, tool-bridge and knowledge base, offline camps, EMR and FHIR adapters</small></span><span class="s">Planned</span></div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="foot-grid">
+      <div>
+        <h2>Run one clinic on it. Then tell us what broke.</h2>
+        <p class="lede" style="margin-top:14px;">We are looking for a small number of pilot sites — a diagnostic centre, an OPD practice, and an NGO camp — where the intake burden is real and the staff will tell us the truth. Pilots get the workflow packs configured to the site and direct access to the people building it.</p>
+        <div class="cta-row"><a class="btn btn-solid" href="mailto:ravinder@radpretation.ai?subject=DharaIntake%20pilot">Talk about a pilot</a></div>
+      </div>
+      <div>
+        <span class="label">Positioning</span>
+        <p style="margin-top:12px; font-size:14.5px; color:var(--ink-2);">A configurable, multilingual, voice-and-touch intake intelligence platform &mdash; with booking, reminders, a live queue, and an agentic front door around it. Reliable intake completion, structured evidence, human-verifiable output.</p>
+      </div>
+    </div>
+    <div class="foot-meta">
+      <span>DharaIntake &middot; Radpretation</span>
+      <span>Intake support, not diagnosis</span>
+      <span>Data residency: India</span>
+      <span>Pricing shown is planning-stage</span>
+    </div>
+  </div>
+</footer>
+
+<script>
+(function () {
+  var reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  var rv = document.querySelectorAll(".rv");
+  if (reduce || !("IntersectionObserver" in window)) {
+    rv.forEach(function (el) { el.classList.add("in"); });
+  } else {
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) { if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); } });
+    }, { rootMargin: "0px 0px -12% 0px", threshold: 0.06 });
+    rv.forEach(function (el) { io.observe(el); });
+  }
+
+  if (reduce) return;
+
+  function rows(list) {
+    return list.map(function (r) {
+      return '<div class="row' + (r[3] === "live" ? " hot" : "") + '">' +
+             '<span class="tok">' + r[0] + '</span>' +
+             '<span class="who">' + r[1] + '<small>' + r[2] + '</small></span>' +
+             '<span class="chip ' + r[3] + '">' + r[4] + '</span></div>';
+    }).join("");
+  }
+
+  var scenes = [
+    { title: "Concierge line &middot; inbound &middot; after hours", cost: "&#8377;7.20", tier: "T3 concierge",
+      body: document.getElementById("pBody").innerHTML },
+
+    { title: "OPD queue &middot; Dr. Kulkarni &middot; Room 2", cost: "&#8377;2.90", tier: "T2 voice",
+      body: '<div class="serving"><div class="big">T&#8209;13</div><div class="meta">Now serving<br>6 waiting &middot; avg 9 min</div></div>' +
+        rows([["T‑14","Anil D.","chest pain + breathlessness","flag","Red flag"],
+              ["T‑15","Priya S.","kiosk · Marathi","live","Intake live"],
+              ["T‑16","Ramesh J.","walk-in · added by desk","idle","Awaiting"],
+              ["T‑17","Fatima B.","booked on WhatsApp","ready","History ready"]]) +
+        '<div class="live-q"><span class="label">T&#8209;15 &middot; question 4 of 11</span>' +
+        '<div class="q">तुम्हाला किती दिवसांपासून खोकला आहे?</div>' +
+        '<div class="a">Heard: <b>&ldquo;पाच दिवस&rdquo;</b> &rarr; duration = 5 days &middot; patient confirmed</div></div>' },
+
+    { title: "Review console &middot; nurse queue", cost: "&#8377;0.00", tier: "Human gate",
+      body: '<div class="call-hd"><span class="no">Intake #4127</span><span class="when">Ready for review</span></div>' +
+        '<div class="turns">' +
+        '<div class="turn ai"><span class="w">Field</span><span class="t"><b>Chief complaint</b> &mdash; Cough &middot; 5 days &middot; confidence 0.92</span></div>' +
+        '<div class="turn pt"><span class="w">Heard</span><span class="t dv">&ldquo;पाच दिवसांपासून खोकला आहे&rdquo;</span></div>' +
+        '<div class="turn ai"><span class="w">Flag</span><span class="t">Fever 101&deg;F &mdash; routed for staff attention, no advice given to patient</span></div>' +
+        '<div class="turn pt"><span class="w">Gap</span><span class="t">Current medications &mdash; low confidence, nurse confirmation required before export</span></div>' +
+        '</div>' +
+        '<div class="trace">' +
+        '<div class="tc"><span class="ok">&#10003;</span><span class="nm">Summary generated<em> from template, not free text</em></span><span class="rs">v2</span></div>' +
+        '<div class="tc"><span class="ok">&#10003;</span><span class="nm">Department suggested<em> (routing assistance)</em></span><span class="rs">confirm</span></div>' +
+        '<div class="tc"><span class="ok">&#10003;</span><span class="nm">Export on approval<em> → webhook + PDF</em></span><span class="rs">queued</span></div>' +
+        '</div>' }
+  ];
+
+  var i = 0,
+      titleEl = document.getElementById("pTitle"),
+      bodyEl = document.getElementById("pBody"),
+      costEl = document.getElementById("pCost"),
+      tierEl = document.getElementById("pTier"),
+      dots = document.getElementById("dots").children;
+
+  setInterval(function () {
+    i = (i + 1) % scenes.length;
+    var s = scenes[i];
+    titleEl.innerHTML = s.title;
+    bodyEl.innerHTML = s.body;
+    costEl.innerHTML = s.cost;
+    tierEl.innerHTML = s.tier;
+    for (var d = 0; d < dots.length; d++) { dots[d].className = (d === i ? "on" : ""); }
+  }, 5200);
+})();
+</script>

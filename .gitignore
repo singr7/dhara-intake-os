@@ -1,0 +1,26 @@
+node_modules/
+dist/
+build/
+.next/
+.turbo/
+coverage/
+*.tsbuildinfo
+
+# env & secrets — never commit (doc 04 §3)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+secrets/
+
+# local data
+data/
+minio-data/
+postgres-data/
+*.log
+
+.DS_Store
+playwright-report/
+test-results/

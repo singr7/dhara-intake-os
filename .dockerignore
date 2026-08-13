@@ -1,0 +1,14 @@
+**/node_modules
+**/dist
+**/.next
+**/.turbo
+**/coverage
+.git
+.github
+docs
+harness
+packs
+*.md
+.env
+.env.*
+!.env.example

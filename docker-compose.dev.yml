@@ -1,0 +1,31 @@
+# Hot-reload override for local development:
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+#
+# Sources are bind-mounted and the Node services run under `tsx watch`. Container
+# node_modules are kept in anonymous volumes so a macOS/Linux host install cannot
+# shadow the Linux binaries built inside the image.
+
+services:
+  api:
+    command: ['pnpm', 'run', 'dev']
+    working_dir: /app/apps/api
+    environment:
+      NODE_ENV: development
+      LOG_LEVEL: debug
+    volumes:
+      - ./apps/api/src:/app/apps/api/src
+      - ./packages:/app/packages
+      - /app/node_modules
+      - /app/apps/api/node_modules
+
+  worker:
+    command: ['pnpm', 'run', 'dev']
+    working_dir: /app/apps/worker
+    environment:
+      NODE_ENV: development
+      LOG_LEVEL: debug
+    volumes:
+      - ./apps/worker/src:/app/apps/worker/src
+      - ./packages:/app/packages
+      - /app/node_modules
+      - /app/apps/worker/node_modules

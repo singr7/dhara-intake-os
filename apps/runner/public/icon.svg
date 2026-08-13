@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="DharaIntake">
+  <rect width="512" height="512" rx="112" fill="#0b1020" />
+  <path
+    d="M256 96c62 58 104 108 104 158a104 104 0 1 1-208 0c0-50 42-100 104-158Z"
+    fill="#189c92"
+  />
+  <path
+    d="M256 168c34 34 58 62 58 88a58 58 0 0 1-116 0c0-26 24-54 58-88Z"
+    fill="#a9dbd6"
+    opacity="0.85"
+  />
+</svg>
