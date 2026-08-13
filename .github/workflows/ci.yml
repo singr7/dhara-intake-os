@@ -1,12 +1,23 @@
 name: CI
 
-# PR tier (doc 10 §3): lint, typecheck, unit tests, build, docker build.
+# PR tier (doc 10 §3): format, lint, typecheck, unit tests, build.
 # Nightly Playwright e2e + harness runs are added when those suites exist (S05 / S18).
+#
+# Runtime budget: the repo is public today (free minutes), but the workflow is written to
+# stay cheap if it goes private — one turbo invocation, a warm turbo cache, doc-only
+# changes skipped, and image builds only where they can actually catch something.
 
 on:
   pull_request:
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
   push:
     branches: [main]
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+  workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -14,7 +25,7 @@ concurrency:
 
 jobs:
   verify:
-    name: lint · typecheck · test · build
+    name: verify
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -28,27 +39,31 @@ jobs:
           node-version: 22
           cache: pnpm
 
+      # Turbo's local cache: unchanged packages replay instead of rebuilding, so a typical
+      # single-package change verifies in seconds rather than re-running the whole graph.
+      - uses: actions/cache@v4
+        with:
+          path: .turbo
+          key: turbo-${{ runner.os }}-${{ github.sha }}
+          restore-keys: |
+            turbo-${{ runner.os }}-
+
       - run: pnpm install --frozen-lockfile
 
-      - name: Format check
-        run: pnpm format:check
+      - run: pnpm format:check
 
-      - name: Lint
-        run: pnpm turbo lint
+      # One invocation: turbo schedules lint/typecheck/test/build across packages in
+      # parallel and shares the dependency graph, instead of four serial passes.
+      - run: pnpm turbo lint typecheck test build
 
-      - name: Typecheck
-        run: pnpm turbo typecheck
-
-      - name: Unit tests
-        run: pnpm turbo test
-
-      - name: Build
-        run: pnpm turbo build
-
+  # Images are what actually ship to the box, so they must build — but only when something
+  # that affects them changed, and only on main. PRs stay fast; a broken Dockerfile is
+  # caught before deploy, not on every push of a README tweak.
   docker:
-    name: docker build
+    name: docker build (${{ matrix.app }})
     runs-on: ubuntu-latest
     needs: verify
+    if: github.event_name != 'pull_request'
     strategy:
       fail-fast: false
       matrix:
@@ -56,9 +71,26 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: dorny/paths-filter@v3
+        id: changes
+        with:
+          filters: |
+            build:
+              - 'apps/**'
+              - 'packages/**'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - 'package.json'
+              - 'turbo.json'
+              - 'tsconfig.base.json'
+              - 'infra/nginx/**'
+              - '.github/workflows/ci.yml'
+
       - uses: docker/setup-buildx-action@v3
+        if: steps.changes.outputs.build == 'true'
 
       - name: Build ${{ matrix.app }} image
+        if: steps.changes.outputs.build == 'true'
         uses: docker/build-push-action@v6
         with:
           context: .

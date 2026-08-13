@@ -115,8 +115,12 @@ Host ports live in `.env` and are deliberately off the usual defaults (8088 / 30
   exports), api, worker, runner (static via nginx), console, nginx edge with the WS
   `map $http_upgrade $connection_upgrade` block and gzip. `docker-compose.dev.yml` adds
   bind-mount hot reload for api/worker.
-- **CI:** `.github/workflows/ci.yml` — format check, lint, typecheck, unit, build, then a
-  docker-build matrix for all four images.
+- **CI:** `.github/workflows/ci.yml` — a `verify` job (format check + one turbo invocation
+  covering lint/typecheck/test/build, with the turbo cache restored between runs) and a
+  `docker` job building all four images. Doc-only changes are skipped; the image matrix runs
+  on main (not PRs) and only when build inputs actually changed.
+- **Remote:** https://github.com/singr7/dhara-intake-os, `main` tracked. Repo is **public** —
+  note that `docs/roadmap/` includes vision, pricing and competitive positioning.
 
 ### Acceptance evidence
 
@@ -130,8 +134,7 @@ Host ports live in `.env` and are deliberately off the usual defaults (8088 / 30
 | Worker                                 | `heartbeat job processed` in logs                                                    |
 | MinIO bootstrap                        | buckets `audio`, `documents`, `exports` created                                      |
 | Missing env                            | API container exits at boot listing the missing variable                             |
-
-CI has not run yet — no git remote exists (see Next).
+| GitHub Actions                         | green on the first push to `main` (all jobs)                                         |
 
 ### Decisions worth knowing
 
@@ -162,4 +165,4 @@ Starting points in this repo:
 - Extend `serverEnvSchema` in `packages/contracts/src/env.ts` for any new variable — nothing
   reads `process.env` directly.
 
-Also open: create the GitHub remote and push so CI runs for the first time.
+Nothing from S01 is left open.
