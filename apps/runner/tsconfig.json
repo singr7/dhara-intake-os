@@ -1,3 +1,5 @@
+// NOTE: see the comment in apps/console/tsconfig.json — React types are pinned to this
+// app's own copy (18.x here) so the shared pnpm hoist cannot decide the major for us.
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
@@ -6,7 +8,11 @@
     "noEmit": true,
     "types": ["vite/client"],
     "declaration": false,
-    "declarationMap": false
+    "declarationMap": false,
+    "paths": {
+      "react": ["./node_modules/@types/react"],
+      "react-dom": ["./node_modules/@types/react-dom"]
+    }
   },
   "include": ["src/**/*.ts", "src/**/*.tsx", "vite.config.ts"],
   "exclude": ["dist", "node_modules"]

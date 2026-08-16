@@ -1,3 +1,9 @@
+// NOTE: `paths` pins React's type resolution to this app's own copy.
+// The workspace holds two React majors on purpose — the runner is React 18, this app is
+// React 19 — and pnpm hoists exactly one @types/react into the shared virtual store. Which
+// one it picks is not stable across machines, so a dependency that resolves React types by
+// plain node resolution (next's .d.ts files do) could land on the other major and fail
+// typecheck on CI while passing locally. Pinning here makes the choice explicit.
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
@@ -8,8 +14,16 @@
     "declarationMap": false,
     "allowJs": true,
     "incremental": true,
-    "plugins": [{ "name": "next" }],
-    "paths": { "@/*": ["./*"] }
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
+    "paths": {
+      "@/*": ["./*"],
+      "react": ["./node_modules/@types/react"],
+      "react-dom": ["./node_modules/@types/react-dom"]
+    }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
   "exclude": ["node_modules", ".next"]

@@ -105,3 +105,19 @@ Contracts in docs 05–08 are binding — a deviation must preserve them (protoc
 - **Why:** one API container until M6; a Redis store is configuration, not redesign.
 - **Cost:** with several API replicas the effective limit multiplies by replica count. Switch
   to the Redis store at S24 (load + failure hardening), where the multi-replica setup lands.
+
+### D-010 — React types pinned per app in tsconfig `paths`
+
+- **Plan:** none (S01 scaffolding; surfaced during S02 CI).
+- **Done:** `apps/console/tsconfig.json` and `apps/runner/tsconfig.json` map `react` /
+  `react-dom` to their own `node_modules/@types` copies. `*.tsbuildinfo` is now gitignored.
+- **Why:** the workspace holds two React majors on purpose — the runner is React 18, the
+  console React 19 — and pnpm hoists exactly one `@types/react` into the shared virtual
+  store. Packages that resolve React types by plain node resolution (next's `.d.ts` files
+  do) land on whichever copy got hoisted, and that choice is not stable across machines: S02
+  typechecked clean locally and failed on CI with `ReactNode is not assignable to
+React.ReactNode`. A committed `tsconfig.tsbuildinfo` then masked the failure on re-runs.
+  Verified by pointing the local hoist at 18.x and confirming the error appears without the
+  pin and disappears with it.
+- **Cost:** none while the split exists. If the runner moves to React 19 (a candidate during
+  S05), the split disappears and these entries can go.
