@@ -16,11 +16,12 @@
     }
   },
   "scripts": {
+    "postinstall": "prisma generate",
     "generate": "prisma generate",
     "build": "prisma generate && tsc -p tsconfig.json",
     "typecheck": "prisma generate && tsc -p tsconfig.json --noEmit",
     "lint": "eslint --config eslint.config.mjs src",
-    "test": "vitest run",
+    "test": "prisma generate && vitest run",
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
     "db:reset": "prisma migrate reset --force --skip-seed && pnpm db:seed",

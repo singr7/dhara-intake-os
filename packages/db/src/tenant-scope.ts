@@ -19,8 +19,19 @@ import { currentTenantId, MissingTenantContextError } from './tenancy.js';
  */
 
 function deriveTenantScopedModels(): ReadonlySet<string> {
+  // Before `prisma generate` runs, `@prisma/client` resolves to a stub whose `dmmf` is
+  // undefined. Failing here with the fix in the message beats a `Cannot read properties of
+  // undefined` five frames into module initialisation.
+  const models = Prisma.dmmf?.datamodel?.models;
+  if (!models) {
+    throw new Error(
+      'Prisma client is not generated: run `pnpm --filter @dhara/db generate`. ' +
+        'Tenant scoping derives its model list from the schema and cannot start without it.',
+    );
+  }
+
   const scoped = new Set<string>();
-  for (const model of Prisma.dmmf.datamodel.models) {
+  for (const model of models) {
     const tenantField = model.fields.find((field) => field.name === 'tenantId');
     if (tenantField?.isRequired === true) {
       scoped.add(model.name);
