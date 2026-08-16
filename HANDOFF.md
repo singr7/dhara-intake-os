@@ -423,6 +423,26 @@ Function`, and no way to name anything except a field key or one of those four f
   _every_ commit rather than at a point in the graph, so "committed before here" has no
   meaning for them. Their types are still checked.
 
+### What CI caught: `prisma generate` was racing itself
+
+Fixed in a follow-up commit on `main`; the run is green including all four images.
+
+`@dhara/db`'s `build`, `typecheck` and `test` scripts each ran `prisma generate`, and turbo
+runs those three in parallel — so three processes wrote the same generated client directory
+at once, and a task that imported `@prisma/client` while another generate was mid-write died
+with `Cannot find module '.prisma/client/default'`. The race pre-dates S03; the changed task
+timing this session is only what surfaced it.
+
+Generation is now a single `generate` turbo task that the other three depend on, so it runs
+exactly once per invocation. It is uncached on purpose: the output lands in the pnpm store,
+outside where turbo can restore it, so a cache hit would mean "skip generation" on a machine
+that has no client at all. Verified the way the failure actually happens — delete the
+generated client, then `pnpm turbo test --filter @dhara/db --force`.
+
+This is the second instance of the S02 lesson (generated artifacts read at import time). The
+rule that keeps holding: if a task consumes something another task generates, say so in the
+task graph — parallelism will find any ordering you left to luck.
+
 ### Deviations
 
 D-011 `NOT_IMPLEMENTED` problem code; D-012 problem envelope carries `issues[]`;
