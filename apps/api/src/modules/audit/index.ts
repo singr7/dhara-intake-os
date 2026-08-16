@@ -46,4 +46,5 @@ export const auditActions = {
   loginSucceeded: 'auth.login.succeeded',
   loginFailed: 'auth.login.failed',
   logout: 'auth.logout',
+  workflowPublished: 'workflow.published',
 } as const;

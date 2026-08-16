@@ -121,3 +121,63 @@ React.ReactNode`. A committed `tsconfig.tsbuildinfo` then masked the failure on 
   pin and disappears with it.
 - **Cost:** none while the split exists. If the runner moves to React 19 (a candidate during
   S05), the split disappears and these entries can go.
+
+## S03
+
+### D-011 — `NOT_IMPLEMENTED` added to the stable problem-code list
+
+- **Plan:** doc 07 §7 fixes the stable `code` list; S03 task 6 says the from-pack and packs
+  routes "may 501 until M5".
+- **Done:** added `NOT_IMPLEMENTED` (501) to `problemCodes` in `packages/contracts`, and the
+  three pack routes throw it.
+- **Why:** the routes exist in the doc 07 surface and clients will discover them, so they
+  have to answer something. Answering `200 {packs: []}` is worse than a 501: an empty
+  catalogue and an unbuilt feature are indistinguishable to the caller, which is the same
+  silent-degradation failure the health endpoint was designed to avoid in S01. Every other
+  option reuses a code that means something else.
+- **Cost:** one more code in the enum. The routes stop throwing it at S19.
+
+### D-012 — Problem envelope carries an optional `issues[]` extension member
+
+- **Plan:** doc 07 §7 defines the envelope as `{type, title, status, code, detail, requestId}`.
+- **Done:** added an optional `issues: [{code, message, path}]` member, populated only by
+  `DSL_VALIDATION_FAILED`.
+- **Why:** a failed publish is genuinely a _list_ of problems, and an author fixing a
+  workflow needs all of them in one pass — fixing one error per round trip through a 200-node
+  document is not a workable authoring loop. RFC 7807 §3.2 explicitly permits extension
+  members, so this stays inside the standard rather than beside it. The alternative — a
+  200 response carrying a failure — would make publish indistinguishable from success to
+  every generic client.
+- **Cost:** clients that validate the envelope strictly must tolerate the extra member; the
+  Zod schema in contracts marks it optional so nothing is required to read it.
+
+### D-013 — Deny-list rules are scoped to questions or statements
+
+- **Plan:** S03 task 3 seeds a flat deny-list (`diagnos*`, `prescri*`, `treatment`,
+  `"you have"`, disease-name placeholder).
+- **Done:** each rule carries `scopes: ('question' | 'statement')[]`. `diagnos*`, `prescri*`,
+  `treatment`, advice and dosage patterns apply everywhere; `"you have"`-style phrasing and
+  the disease-name list apply only to strings that _tell_ the patient something (info and end
+  prompts, red-flag `patientMessage`, validation messages, consent text) — not to questions,
+  help text or answer option labels.
+- **Why:** a flat list makes the OPD workflow — the actual product — unpublishable. "Do you
+  have diabetes?" is history-taking: the patient asserts it about themselves, and an intake
+  form that cannot ask it is useless. "You have diabetes" is a diagnosis. The words are
+  identical and only the direction differs, so the direction is what the rule keys on. A
+  deny-list that blocks correct authoring gets suppressed or deleted within a month, which
+  costs more safety than it buys.
+- **Cost:** a patient-facing _question_ could in principle name a condition suggestively
+  ("Do you think you have TB?"). The clinical pack review at M5 owns the disease-name list
+  and can promote rules back to global scope with one edit per rule.
+
+### D-014 — Cycles are rejected outright, with no clarification exception yet
+
+- **Plan:** doc 06 §7 — "no cycles except via explicit `clarification`".
+- **Done:** `validate()` rejects every cycle in the node graph.
+- **Why:** there is no `clarification` node type in doc 06 §2 — clarification is a _runtime_
+  rung of the extraction ladder (doc 06 §3), bounded by `settings.clarificationMaxAttempts`,
+  and it re-asks the same node rather than routing back to an earlier one. A cycle in the
+  authored graph is therefore always an error today. Allowing one would also break the
+  field-before-use dataflow analysis, which needs a topological order.
+- **Cost:** if a future node type does need a back edge, the check needs an exception list
+  and the dataflow pass needs a fixpoint iteration instead of a single topological sweep.

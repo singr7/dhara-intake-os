@@ -17,17 +17,26 @@ export class ApiError extends Error {
   readonly code: ProblemCode;
   readonly status: number;
   readonly detail?: string;
+  /** RFC 7807 extension member, for errors that are genuinely a list (see `problem.ts`). */
+  readonly issues?: Problem['issues'];
 
-  constructor(code: ProblemCode, detail?: string, status?: number) {
+  constructor(
+    code: ProblemCode,
+    detail?: string,
+    options: { status?: number; issues?: Problem['issues'] } = {},
+  ) {
     super(detail ?? code);
     this.name = 'ApiError';
     this.code = code;
-    this.status = status ?? problemStatusByCode[code];
+    this.status = options.status ?? problemStatusByCode[code];
     this.detail = detail;
+    this.issues = options.issues;
   }
 }
 
 const titles: Partial<Record<ProblemCode, string>> = {
+  DSL_VALIDATION_FAILED: 'Workflow document is not valid',
+  NOT_IMPLEMENTED: 'Not implemented yet',
   AUTH_REQUIRED: 'Authentication required',
   FORBIDDEN: 'Forbidden',
   VALIDATION_FAILED: 'Request validation failed',
@@ -36,13 +45,19 @@ const titles: Partial<Record<ProblemCode, string>> = {
   INTERNAL_ERROR: 'Internal server error',
 };
 
-export function buildProblem(code: ProblemCode, requestId: string, detail?: string): Problem {
+export function buildProblem(
+  code: ProblemCode,
+  requestId: string,
+  detail?: string,
+  issues?: Problem['issues'],
+): Problem {
   return {
     type: `${PROBLEM_TYPE_BASE}${code.toLowerCase()}`,
     title: titles[code] ?? code.replaceAll('_', ' ').toLowerCase(),
     status: problemStatusByCode[code],
     code,
     ...(detail ? { detail } : {}),
+    ...(issues ? { issues } : {}),
     requestId,
   };
 }
@@ -60,7 +75,11 @@ async function plugin(app: FastifyInstance): Promise<void> {
   app.setErrorHandler((error: FastifyError, request: FastifyRequest, reply: FastifyReply) => {
     if (error instanceof ApiError) {
       request.log.info({ code: error.code }, 'request rejected');
-      return send(reply, buildProblem(error.code, request.id, error.detail), error.status);
+      return send(
+        reply,
+        buildProblem(error.code, request.id, error.detail, error.issues),
+        error.status,
+      );
     }
 
     // Fastify/Zod validation failures.

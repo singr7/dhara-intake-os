@@ -23,6 +23,7 @@ export const problemCodes = [
   // Generic transport-level codes
   'VALIDATION_FAILED',
   'NOT_FOUND',
+  'NOT_IMPLEMENTED',
   'RATE_LIMITED',
   'INTERNAL_ERROR',
 ] as const;
@@ -35,6 +36,12 @@ export const problemSchema = z.object({
   status: z.number().int(),
   code: z.enum(problemCodes),
   detail: z.string().optional(),
+  /**
+   * RFC 7807 extension member. Used where one error is genuinely a list of them —
+   * `DSL_VALIDATION_FAILED` carries every validator issue, because an author fixing a
+   * workflow needs the whole list, not the first line of it.
+   */
+  issues: z.array(z.object({ code: z.string(), message: z.string(), path: z.string() })).optional(),
   requestId: z.string(),
 });
 
@@ -59,6 +66,7 @@ export const problemStatusByCode: Record<ProblemCode, number> = {
   OPTED_OUT: 409,
   VALIDATION_FAILED: 400,
   NOT_FOUND: 404,
+  NOT_IMPLEMENTED: 501,
   RATE_LIMITED: 429,
   INTERNAL_ERROR: 500,
 };

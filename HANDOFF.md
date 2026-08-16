@@ -56,8 +56,8 @@ Host ports live in `.env` and are deliberately off the usual defaults (8088 / 30
 | ------- | -------------------------------------------------- | -------------------- |
 | S01     | Repo scaffold + infrastructure skeleton            | ✅ done (2026-08-13) |
 | S02     | Data model, multi-tenancy, auth                    | ✅ done (2026-08-15) |
-| S03     | Workflow DSL package (parser, validator, compiler) | ⬜ next              |
-| S04     | Session engine + runner API                        | ⬜                   |
+| S03     | Workflow DSL package (parser, validator, compiler) | ✅ done (2026-08-16) |
+| S04     | Session engine + runner API                        | ⬜ next              |
 | S05     | Runner PWA: touch-first intake                     | ⬜                   |
 | S06     | Console v0 + M1 demo                               | ⬜                   |
 | S06A    | Appointments core _(doc-13)_                       | ⬜                   |
@@ -299,27 +299,160 @@ D-007 scoping covers required-`tenantId` models only; D-008 relation traversals 
 D-009 in-process login rate limit; D-010 React types pinned per app. Details in
 [`DEVIATIONS.md`](DEVIATIONS.md).
 
-### Next — S03 (workflow DSL package: parser, validator, compiler)
+### Outcome
 
-Read `docs/roadmap/sessions/M1.md` §S03 + doc 06 (all — S03 implements it exactly) and
-doc 05 §2 (workflow tables). Starting points in this repo:
+Nothing was left open. S03 (below) built on it directly: the `workflow_versions` freeze
+trigger, the tenant-scoped client and `emitEvent()` all landed here and are used as-is.
 
-- `packages/dsl` is still a bare boundary — the expression grammar parser, `validate()`, the
-  `compiledGraph` builder and the pure interpreter core all land there. No `eval`, ever
-  (ADR-007).
-- `packages/contracts` is where the DSL document schemas go, next to `events.ts` and
-  `auth.ts`. Follow the pattern in `events.ts`: define the whole contract now, even the parts
-  that fire later.
-- `workflow_versions` already has `dslDocument` and `compiledGraph` JSONB columns, a
-  `@@unique([workflowId, semver])`, and a trigger that freezes a row once `publishedAt` is
-  set — so publish must write `publishedAt` in the same update as the final content, not
-  after it.
-- API workflow routes go in `apps/api/src/modules/workflow/`; guard them with
-  `requireRole('admin', 'owner')` from `plugins/auth.ts`.
-- Writing evidence from new code? Use `emitEvent()` — it is the only sanctioned write path,
-  and it rejects any type or payload the doc 05 §4 taxonomy does not describe.
+---
 
-Left open from S02: nothing blocking. Two follow-ups are recorded as deviations rather than
-tasks — the Redis rate-limit store (S24) and explicit filtering for the three dual-scope
-tables when they are first written to (S07/S19). The console login page is still the inert
-S01 placeholder; wiring it to these routes is S06's task, per the session plan.
+## S03 — Workflow DSL package: parser, validator, compiler (2026-08-16)
+
+### Done
+
+- **`packages/contracts/dsl.ts` — the whole document format.** Zod schemas for doc 06
+  §1–3 and §5: every node type (question, info, branch, computed, upload, handoff,
+  checkpoint, end, and the doc-13 `action`), every answer type (choice, multiChoice,
+  boolean, number, duration, date, text, phone, id, bodyLocation, media), localized text
+  maps, red flags, cross-field validations, review and output policy. Expressions are a
+  branded string type, so a raw string cannot reach a place that expects a parsed one.
+- **Expression grammar, parsed and never evaluated (ADR-007).** A hand-written lexer and
+  recursive-descent parser for doc 06 §4 in `packages/dsl/src/expression/`, producing a
+  plain-JSON AST. `&&` binds tighter than `||`, comparison tighter than both, `!` is a
+  prefix, parentheses override. All four functions (`exists`, `contains`, `count`,
+  `ageYears`) and all six comparisons are implemented. There is no `eval`, no `new
+Function`, and no way to name anything except a field key or one of those four functions.
+- **A static type-checker for expressions.** Field types from the document are propagated
+  through the AST, so `f.chest_pain == "yes"` against a boolean, `count(f.age)`,
+  `f.symptoms == "fever"` on a multiChoice and `ageYears(f.name)` are all publish-time
+  errors rather than branches that silently never fire.
+- **`validate(doc)` — the doc 06 §7 compiler contract.** Shape → references → expression
+  syntax → topology → dataflow → language → safety, each stage assuming the last one passed.
+  It catches: duplicate ids, unknown field and node references, answer-type overrides that
+  retype a field, malformed transition lists, expression syntax and type errors, unreachable
+  nodes, cycles, paths that never reach an `end`, fields read before they are committed,
+  missing translations, deny-list violations and dangling review-policy references. Every
+  issue carries a JSON pointer (`/nodes/3/prompt/hi`) and a message that says what to do.
+- **The field-before-use check is an intersection, not a union.** A field committed on only
+  one arm of a branch is _not_ available where the arms rejoin — that is precisely the bug
+  that produces an expression reading `undefined` in a clinic — so the dataflow pass
+  intersects over all incoming paths. `committedBefore` is kept in the compiled graph; S04
+  can reuse it for progress and for resumed sessions.
+- **`compiledGraph`.** Adjacency, precompiled ASTs, resolved answer schemas, per-node
+  metadata (confirm policy, interaction modes, skippable + reason, terminal flag,
+  `committedBefore`), plus red flags, validations, settings, consent and a question count for
+  the progress bar. Pure JSON — a test asserts it survives a JSON round trip, because it
+  lives in a JSONB column and is read back by another process.
+- **Pure interpreter core.** `nextNode`, `evaluateRedFlags`, `evaluateValidations`,
+  `evaluateComputed`, `startNode`, `localize`. No I/O, no database, no Fastify: S04 owns
+  state and evidence, this owns what the workflow says happens next. `branch` nodes are
+  resolved transparently, so callers get the next node a _patient_ sees.
+- **Deny-list (ADR-015, doc 09 §1) in `packages/dsl/denylist.ts`.** Eight seeded rules in
+  English and Devanagari, each with author guidance. A hit is an error, not a warning.
+- **Semver classification (doc 06 §8).** `classifyChange` computes major/minor/patch from
+  the two documents rather than trusting an author's claim: removed or renamed field,
+  changed answer type or newly-required field → major; added node or field, or any
+  structural/routing change → minor; identical once every human-readable string is stripped
+  → patch.
+- **API workflow module** (`apps/api/src/modules/workflow/`): list, create, detail, draft
+  PUT, validate, publish, `GET /workflow-versions/:id`, and 501s for the three pack routes.
+  All behind `requireRole('admin','owner')`; publish writes an audit row.
+- **`packs/opd-general/workflow.json` — the first real workflow.** Consent → welcome →
+  chief complaint (choice, 6 options) → duration → fever/cough/chest pain booleans → branch
+  → breathlessness → existing conditions (multiChoice) → medications → allergy (+ detail
+  branch) → end. Full en + hi coverage, all-touch modes, two red flags and one cross-field
+  validation. It validates with **zero errors and zero warnings** under publish-time rules.
+
+### Acceptance evidence
+
+| Check                                                             | Result                                                          |
+| ----------------------------------------------------------------- | --------------------------------------------------------------- |
+| `pnpm turbo lint typecheck test build`                            | green (32 tasks)                                                |
+| `@dhara/dsl` suite                                                | 157 passed                                                      |
+| `@dhara/api` suite                                                | 48 passed (20 new)                                              |
+| OPD document, publish-time validation                             | 0 errors, 0 warnings, compiles (test)                           |
+| `POST /workflows` → `PUT /draft` → `/validate` → `/publish`       | round trip green, semver `1.0.0`, graph stored (test + curl)    |
+| Second publish after a text edit                                  | `bump: patch`, semver `1.0.1` (test)                            |
+| Second publish after removing a field                             | `bump: major`, semver `2.0.0` (test)                            |
+| Published version rewritten via raw client                        | rejected by the S02 freeze trigger (test)                       |
+| Draft still editable after publish; exactly one draft row         | asserted (test)                                                 |
+| Unreachable node / cycle / dead end                               | each rejected with its own code and message (test)              |
+| Missing `hi` prompt                                               | warning on draft, error on publish (test)                       |
+| Expression referencing an uncommitted field                       | rejected, including the one-arm-of-a-branch case (test)         |
+| Deny-list violation in a `patientMessage`                         | publish rejected, 422 `DSL_VALIDATION_FAILED` (test)            |
+| `f.__proto__` as a field reference                                | rejected by the parser; evaluator does own-property only (test) |
+| Reviewer calling any workflow route                               | 403 `FORBIDDEN` (test)                                          |
+| Another tenant reading a workflow, a version, or writing          | 404 each (test)                                                 |
+| `GET /packs`, `/packs/:key/versions`, `POST /workflows/from-pack` | 501 `NOT_IMPLEMENTED` (test)                                    |
+| compiledGraph JSON round trip                                     | identical (test)                                                |
+
+### Decisions worth knowing
+
+- **A draft is a row, not a status.** Every workflow always has exactly one version row with
+  `publishedAt = null`; publish _promotes_ that row and opens a fresh one carrying the same
+  document. Publish is therefore a **single UPDATE** setting content, semver and
+  `publishedAt` together — the S02 freeze trigger permits exactly one draft→published
+  transition, so writing content first and stamping second is rejected, and stamping first
+  freezes the row before the content lands.
+- **`workflow_versions` has no `tenantId`, so the scoped client does not cover it** (D-007).
+  Every access in the module goes through a scoped `workflow` lookup first, and
+  `getVersionOr404` re-checks the parent explicitly. Tests assert a cross-tenant read of a
+  version id 404s. Any future table that inherits tenancy through a parent needs the same
+  treatment — this is the second instance of the pattern after `AuthSession → User`.
+- **A draft may be invalid; publishing may not.** `PUT /draft` saves unconditionally and
+  returns the validation result as advice. Refusing to save half-finished work would make
+  the studio unusable, and the gate belongs where the risk is.
+- **The deny-list is scoped by direction, not by word** (D-013). "Do you have diabetes?" is
+  history-taking; "You have diabetes" is a diagnosis. A flat word list makes the OPD pack —
+  the actual product — unpublishable, and a validator that blocks correct authoring gets
+  suppressed within a month.
+- **`f.__proto__` was a real hole.** The lexer accepted any identifier as a field key, so the
+  expression parsed and the evaluator returned `Object.prototype`. Field keys are now
+  validated against the same shape as `dslIdSchema` at parse time, and the evaluator does an
+  own-property check as well — a compiled graph read back from JSONB has not necessarily been
+  through this build's parser. Found by a test that was written to assert the grammar has no
+  host access; worth keeping that kind of test.
+- **Devanagari deny-list patterns cannot sit inside `\b(?:…)\b`.** `\b` is an ASCII word
+  boundary, and Devanagari letters are not `\w`, so `\b(?:diagnos\w*|निदान)\b` silently
+  matches only its English half. The patterns are now split, and a test covers the Hindi case.
+- **An uncommitted field is falsy, not fatal.** The evaluator returns `undefined` for a field
+  that was skipped, and comparisons against it are `false`. The validator guarantees no
+  branch _depends_ on an uncommitted field; this rule covers the legitimately-skipped
+  optional field, where routing to the `else` arm is right and throwing mid-intake is not.
+- **Rules are exempt from the field-before-use check.** Red flags and validations run after
+  _every_ commit rather than at a point in the graph, so "committed before here" has no
+  meaning for them. Their types are still checked.
+
+### Deviations
+
+D-011 `NOT_IMPLEMENTED` problem code; D-012 problem envelope carries `issues[]`;
+D-013 deny-list rules scoped question/statement; D-014 cycles rejected outright (no
+`clarification` node type exists to except). Details in [`DEVIATIONS.md`](DEVIATIONS.md).
+
+### Next — S04 (session engine + runner API)
+
+Read `docs/roadmap/sessions/M1.md` §S04 + docs 05 §3–5, 07 §2–4, 03 (ADR-006, ADR-010),
+09 §2. Starting points in this repo:
+
+- **The interpreter is ready to drive.** `nextNode(graph, committedFields, nodeId)`,
+  `evaluateRedFlags`, `evaluateValidations`, `evaluateComputed` and `localize` are exported
+  from `@dhara/dsl` and are pure — S04 supplies state, evidence writes and I/O around them.
+  `interpreter.test.ts` shows the intended drive loop.
+- **The step envelope (doc 07 §3) is mostly precomputed.** Each `CompiledNode` already
+  carries the resolved `answer` schema, `confirm`, `modes`, `prompt`, `skippable` and
+  `committedBefore`. What S04 adds is `touchUi` per answer type, progress
+  (`questionCount` is the denominator) and the voice block.
+- `packs/opd-general/workflow.json` is the workflow the S04 integration tests should drive:
+  it has a branch, a transition list, a skippable node, two red flags and a validation.
+  Publish it through the API rather than loading the file, so the test exercises the same
+  path a clinic does.
+- Sessions pin `workflowVersionId` and must read the **compiled graph** from that row, never
+  re-validate the document at runtime.
+- Red-flag escalation: `evaluateRedFlags` returns flags worst-first, so
+  `raised[0].escalation === 'alert_staff_immediately'` with `severity: 'high'` is the
+  `human_assistance_needed` trigger from doc 06 §5.
+- Writing evidence from new code? Still `emitEvent()` — it is the only sanctioned write path.
+
+Left open from S03: nothing blocking. The three pack routes 501 until S19 (D-011). The
+console still has no studio UI — that is S06, and S21 replaces raw JSON authoring with the
+visual builder.

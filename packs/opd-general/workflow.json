@@ -1,0 +1,298 @@
+{
+  "dslVersion": "1.0",
+  "key": "opd-general",
+  "title": { "en": "OPD General Intake", "hi": "ओपीडी सामान्य पूछताछ" },
+  "languages": ["en", "hi"],
+  "defaultMode": "touch",
+  "consent": {
+    "purposeVersion": "2026-07-01",
+    "text": {
+      "en": "We will ask a few questions about why you are here today and share your answers with the clinic staff who will see you. Your answers are stored securely. You can stop at any time and ask for a staff member instead.",
+      "hi": "हम आपसे कुछ सवाल पूछेंगे कि आप आज यहाँ क्यों आए हैं, और आपके जवाब क्लिनिक के स्टाफ़ को दिखाएँगे जो आपसे मिलेंगे। आपके जवाब सुरक्षित रखे जाते हैं। आप कभी भी रोक सकते हैं और स्टाफ़ से बात करने के लिए कह सकते हैं।"
+    }
+  },
+  "settings": {
+    "maxDurationSec": 900,
+    "maxCostPaise": 500,
+    "voiceFallbackAfterFailures": 2,
+    "clarificationMaxAttempts": 1
+  },
+
+  "fields": {
+    "chief_complaint": {
+      "type": "choice",
+      "required": true,
+      "options": [
+        {
+          "value": "fever",
+          "label": { "en": "Fever", "hi": "बुखार" },
+          "icon": "thermometer",
+          "synonyms": { "en": ["temperature", "hot"], "hi": ["बुखार", "ताप"] }
+        },
+        {
+          "value": "cough_cold",
+          "label": { "en": "Cough or cold", "hi": "खाँसी या ज़ुकाम" },
+          "icon": "lungs",
+          "synonyms": { "en": ["cough", "cold", "sneezing"], "hi": ["खाँसी", "ज़ुकाम"] }
+        },
+        {
+          "value": "pain",
+          "label": { "en": "Pain somewhere", "hi": "कहीं दर्द" },
+          "icon": "bandage",
+          "synonyms": { "en": ["ache", "hurting", "pain"], "hi": ["दर्द", "पीड़ा"] }
+        },
+        {
+          "value": "stomach",
+          "label": { "en": "Stomach problem", "hi": "पेट की समस्या" },
+          "icon": "stomach",
+          "synonyms": {
+            "en": ["vomiting", "loose motion", "stomach"],
+            "hi": ["पेट", "उल्टी", "दस्त"]
+          }
+        },
+        {
+          "value": "checkup",
+          "label": { "en": "Routine check-up", "hi": "नियमित जाँच" },
+          "icon": "clipboard",
+          "synonyms": { "en": ["checkup", "routine", "follow up"], "hi": ["जाँच", "फॉलो अप"] }
+        },
+        {
+          "value": "other",
+          "label": { "en": "Something else", "hi": "कुछ और" },
+          "icon": "dots",
+          "synonyms": { "en": ["other", "something else"], "hi": ["और", "दूसरा"] }
+        }
+      ]
+    },
+
+    "symptom_duration": {
+      "type": "duration",
+      "required": true,
+      "units": ["days", "weeks", "months"],
+      "maxValue": 120
+    },
+
+    "fever": { "type": "boolean", "required": true },
+    "cough": { "type": "boolean", "required": true },
+    "chest_pain": { "type": "boolean", "required": true },
+    "breathlessness": { "type": "boolean", "required": false },
+
+    "existing_conditions": {
+      "type": "multiChoice",
+      "required": false,
+      "max": 6,
+      "options": [
+        { "value": "none", "label": { "en": "None", "hi": "कोई नहीं" } },
+        { "value": "diabetes", "label": { "en": "Diabetes", "hi": "डायबिटीज़" } },
+        {
+          "value": "hypertension",
+          "label": { "en": "High blood pressure", "hi": "हाई ब्लड प्रेशर" }
+        },
+        { "value": "asthma", "label": { "en": "Asthma", "hi": "दमा" } },
+        { "value": "heart", "label": { "en": "Heart problem", "hi": "दिल की समस्या" } },
+        { "value": "thyroid", "label": { "en": "Thyroid", "hi": "थायरॉइड" } }
+      ]
+    },
+
+    "current_medications": {
+      "type": "text",
+      "required": false,
+      "maxLen": 500,
+      "piiLevel": "high",
+      "retention": "sensitive"
+    },
+
+    "has_allergy": { "type": "boolean", "required": true },
+    "allergy_detail": { "type": "text", "required": false, "maxLen": 200, "piiLevel": "high" }
+  },
+
+  "nodes": [
+    {
+      "id": "info_welcome",
+      "type": "info",
+      "prompt": {
+        "en": "A few quick questions before you see the doctor. Tap the answer that fits best.",
+        "hi": "डॉक्टर से मिलने से पहले कुछ छोटे सवाल। जो जवाब सही लगे उस पर टैप करें।"
+      },
+      "next": "q_chief_complaint"
+    },
+    {
+      "id": "q_chief_complaint",
+      "type": "question",
+      "fieldKey": "chief_complaint",
+      "prompt": {
+        "en": "What brings you in today?",
+        "hi": "आप आज किस वजह से आए हैं?"
+      },
+      "helpText": {
+        "en": "Pick the closest one. You can tell the doctor more in person.",
+        "hi": "जो सबसे नज़दीक हो वह चुनें। बाकी बात डॉक्टर को बता सकते हैं।"
+      },
+      "confirm": "never",
+      "next": "q_duration"
+    },
+    {
+      "id": "q_duration",
+      "type": "question",
+      "fieldKey": "symptom_duration",
+      "prompt": {
+        "en": "How long has this been going on?",
+        "hi": "यह कब से चल रहा है?"
+      },
+      "confirm": "lowConfidence",
+      "next": "q_fever"
+    },
+    {
+      "id": "q_fever",
+      "type": "question",
+      "fieldKey": "fever",
+      "prompt": { "en": "Do you have a fever right now?", "hi": "क्या इस समय आपको बुखार है?" },
+      "confirm": "never",
+      "next": "q_cough"
+    },
+    {
+      "id": "q_cough",
+      "type": "question",
+      "fieldKey": "cough",
+      "prompt": { "en": "Do you have a cough?", "hi": "क्या आपको खाँसी है?" },
+      "confirm": "never",
+      "next": "q_chest_pain"
+    },
+    {
+      "id": "q_chest_pain",
+      "type": "question",
+      "fieldKey": "chest_pain",
+      "prompt": { "en": "Do you have chest pain?", "hi": "क्या आपकी छाती में दर्द है?" },
+      "confirm": "never",
+      "next": "b_chest_pain"
+    },
+    {
+      "id": "b_chest_pain",
+      "type": "branch",
+      "cases": [{ "when": "f.chest_pain == true", "next": "q_breathlessness" }],
+      "else": "q_existing_conditions"
+    },
+    {
+      "id": "q_breathlessness",
+      "type": "question",
+      "fieldKey": "breathlessness",
+      "prompt": {
+        "en": "Are you finding it hard to breathe?",
+        "hi": "क्या आपको साँस लेने में तकलीफ़ हो रही है?"
+      },
+      "confirm": "never",
+      "next": "q_existing_conditions"
+    },
+    {
+      "id": "q_existing_conditions",
+      "type": "question",
+      "fieldKey": "existing_conditions",
+      "prompt": {
+        "en": "Do any of these apply to you?",
+        "hi": "क्या इनमें से कोई आप पर लागू होता है?"
+      },
+      "helpText": {
+        "en": "Choose all that apply, or choose None.",
+        "hi": "जो भी लागू हों सब चुनें, या 'कोई नहीं' चुनें।"
+      },
+      "confirm": "never",
+      "skippable": { "skippable": true, "reason": "history_optional" },
+      "next": "q_medications"
+    },
+    {
+      "id": "q_medications",
+      "type": "question",
+      "fieldKey": "current_medications",
+      "prompt": {
+        "en": "Are you taking any medicines at the moment? Which ones?",
+        "hi": "क्या आप इस समय कोई दवा ले रहे हैं? कौन सी?"
+      },
+      "helpText": {
+        "en": "Names are enough. If you have the strip with you, you can show it to the staff.",
+        "hi": "नाम बता दें तो काफ़ी है। अगर पत्ता साथ है तो स्टाफ़ को दिखा सकते हैं।"
+      },
+      "confirm": "always",
+      "skippable": { "skippable": true, "reason": "patient_unsure" },
+      "next": "q_allergy"
+    },
+    {
+      "id": "q_allergy",
+      "type": "question",
+      "fieldKey": "has_allergy",
+      "prompt": {
+        "en": "Are you allergic to any medicine?",
+        "hi": "क्या आपको किसी दवा से एलर्जी है?"
+      },
+      "confirm": "never",
+      "next": [
+        { "when": "f.has_allergy == true", "next": "q_allergy_detail" },
+        { "next": "end_done" }
+      ]
+    },
+    {
+      "id": "q_allergy_detail",
+      "type": "question",
+      "fieldKey": "allergy_detail",
+      "prompt": { "en": "Which medicine?", "hi": "कौन सी दवा?" },
+      "confirm": "always",
+      "skippable": { "skippable": true, "reason": "patient_unsure" },
+      "next": "end_done"
+    },
+    {
+      "id": "end_done",
+      "type": "end",
+      "outcome": "completed",
+      "prompt": {
+        "en": "Thank you. Please wait to be called — the clinic staff have your answers.",
+        "hi": "धन्यवाद। कृपया अपनी बारी का इंतज़ार करें — क्लिनिक स्टाफ़ के पास आपके जवाब पहुँच गए हैं।"
+      }
+    }
+  ],
+
+  "rules": {
+    "redFlags": [
+      {
+        "id": "chest_pain_breathless",
+        "when": "f.chest_pain == true && f.breathlessness == true",
+        "severity": "high",
+        "escalation": "alert_staff_immediately",
+        "patientMessage": {
+          "en": "A staff member will come to you shortly.",
+          "hi": "स्टाफ़ का कोई सदस्य जल्द ही आपके पास आएगा।"
+        },
+        "staffNote": "Chest pain with breathlessness — triage before queueing."
+      },
+      {
+        "id": "prolonged_fever",
+        "when": "f.fever == true && f.symptom_duration != null",
+        "severity": "medium",
+        "escalation": "notify_review",
+        "staffNote": "Fever present at intake — check duration in the summary."
+      }
+    ],
+    "validations": [
+      {
+        "id": "allergy_named",
+        "when": "f.has_allergy == true",
+        "assert": "exists(f.allergy_detail)",
+        "message": {
+          "en": "Please name the medicine, or tap skip if you are not sure.",
+          "hi": "कृपया दवा का नाम बताएँ, या पक्का न हो तो छोड़ें पर टैप करें।"
+        },
+        "severity": "warn"
+      }
+    ]
+  },
+
+  "review": {
+    "alwaysReview": ["current_medications", "allergy_detail"],
+    "confidenceThreshold": 0.75,
+    "reviewRequired": true
+  },
+
+  "output": {
+    "schemaId": "opd-general-output@1",
+    "summaryTemplateId": "opd-doctor-summary@1",
+    "routingRule": "dept_routing_v1"
+  }
+}

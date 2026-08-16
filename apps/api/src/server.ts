@@ -9,6 +9,7 @@ import { requestIdPlugin } from './plugins/request-id.js';
 import { authPlugin } from './plugins/auth.js';
 import { healthRoutes } from './modules/health/index.js';
 import { authRoutes } from './modules/auth/index.js';
+import { workflowRoutes } from './modules/workflow/index.js';
 
 export const API_PREFIX = '/api/v1';
 
@@ -37,6 +38,7 @@ export async function buildServer(env: ServerEnv): Promise<FastifyInstance> {
 
   await app.register(healthRoutes, { prefix: API_PREFIX, env });
   await app.register(authRoutes, { prefix: API_PREFIX, env });
+  await app.register(workflowRoutes, { prefix: API_PREFIX });
 
   return app;
 }
