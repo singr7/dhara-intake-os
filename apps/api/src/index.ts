@@ -1,6 +1,7 @@
 // Entrypoint. Environment is validated on the very first line of work: an incomplete
 // .env crashes the process here, never halfway through a patient's intake (doc 04 §3).
 import { loadServerEnv } from '@dhara/contracts';
+import { disconnectDatabase } from '@dhara/db';
 import { buildServer } from './server.js';
 
 async function main(): Promise<void> {
@@ -10,6 +11,7 @@ async function main(): Promise<void> {
   const close = async (signal: string): Promise<void> => {
     app.log.info({ signal }, 'shutting down');
     await app.close();
+    await disconnectDatabase();
     process.exit(0);
   };
   process.on('SIGTERM', () => void close('SIGTERM'));

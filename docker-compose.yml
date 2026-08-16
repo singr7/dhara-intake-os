@@ -87,12 +87,30 @@ services:
         echo "minio buckets ready"
     restart: 'no'
 
+  # Schema migrations run as their own one-shot service rather than from the API's start
+  # command: with several API replicas (M6+) a start-up migration is a race, and a failed
+  # migration should stop the deploy rather than crash-loop a serving container.
+  migrate:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+    working_dir: /app/packages/db
+    command: ['pnpm', 'exec', 'prisma', 'migrate', 'deploy']
+    restart: 'no'
+
   api:
     build:
       context: .
       dockerfile: apps/api/Dockerfile
     restart: unless-stopped
     depends_on:
+      migrate:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       redis:
@@ -112,6 +130,8 @@ services:
       S3_BUCKET_DOCUMENTS: ${S3_BUCKET_DOCUMENTS}
       S3_BUCKET_EXPORTS: ${S3_BUCKET_EXPORTS}
       SESSION_SECRET: ${SESSION_SECRET}
+      SESSION_TTL_HOURS: ${SESSION_TTL_HOURS}
+      LOGIN_RATE_LIMIT_PER_MINUTE: ${LOGIN_RATE_LIMIT_PER_MINUTE}
       API_PORT: 3001
     expose:
       - '3001'
@@ -124,6 +144,8 @@ services:
       dockerfile: apps/worker/Dockerfile
     restart: unless-stopped
     depends_on:
+      migrate:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
       postgres:

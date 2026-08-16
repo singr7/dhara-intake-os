@@ -1,15 +1,72 @@
 /**
- * @dhara/db — Prisma schema, client, and the tenant-scoped client extension (doc 05, ADR-011).
+ * @dhara/db — the data layer (doc 05, ADR-002, ADR-010, ADR-011).
  *
- * S01 ships the package boundary only. S02 adds: the full Prisma schema + migrations,
- * append-only guards for `evidence_events` / `audit_events`, and the tenant-scoped client
- * that injects `tenant_id` from AsyncLocalStorage. The raw client will be exported only from
- * a `platformOps` namespace — any other raw `prisma.` usage is review-blocking (doc 04 §3).
+ * Everything the rest of the workspace needs comes through here: the tenant-scoped client,
+ * the tenant context helpers, and the generated model types and enums. `PrismaClient`
+ * itself is deliberately *not* re-exported — the raw client is reachable only via
+ * `platformOps`, and ESLint blocks `@prisma/client` imports outside this package.
  */
 
 export const DB_PACKAGE = '@dhara/db' as const;
 
-/** Placeholder connectivity probe; S02 replaces this with a real `SELECT 1`. */
-export async function checkDatabase(): Promise<boolean> {
-  return false;
-}
+export { db, platformOps, checkDatabase, disconnectDatabase, type Db } from './client.js';
+export {
+  runWithTenant,
+  currentTenantContext,
+  currentTenantId,
+  requireTenantId,
+  MissingTenantContextError,
+  type TenantContext,
+} from './tenancy.js';
+export { tenantScopedModels } from './tenant-scope.js';
+export { appendOnlyModels, AppendOnlyViolationError } from './append-only.js';
+
+// Enums are values (used in comparisons and as literal unions across the API surface).
+export {
+  ConfigScope,
+  ConsentMethod,
+  CostKind,
+  EvidenceActorKind,
+  ExportStatus,
+  ExportTargetKind,
+  FieldValueStatus,
+  MediaKind,
+  PlatformRole,
+  PromptAudioSource,
+  ProviderKind,
+  RetentionClass,
+  ReviewActionKind,
+  SessionMode,
+  SessionState,
+  SessionSurface,
+  TenantRole,
+  TenantStatus,
+  UserStatus,
+  WorkflowStatus,
+} from '@prisma/client';
+
+export type {
+  AuditEvent,
+  AuthSession,
+  Budget,
+  ConsentRecord,
+  CostRecord,
+  EvidenceEvent,
+  ExportRecord,
+  ExportTarget,
+  FieldValue,
+  IntakeSession,
+  MediaObject,
+  Pack,
+  PackVersion,
+  PlatformUser,
+  PromptAudio,
+  ProviderConfig,
+  ReviewAction,
+  RoutingPolicy,
+  Tenant,
+  User,
+  UserRole,
+  Workflow,
+  WorkflowVersion,
+} from '@prisma/client';

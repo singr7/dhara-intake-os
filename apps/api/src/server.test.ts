@@ -1,24 +1,10 @@
 import { describe, expect, it, beforeAll, afterAll } from 'vitest';
 import type { FastifyInstance } from 'fastify';
-import {
-  healthSchema,
-  parseServerEnv,
-  PROBLEM_CONTENT_TYPE,
-  problemSchema,
-} from '@dhara/contracts';
+import { healthSchema, PROBLEM_CONTENT_TYPE, problemSchema } from '@dhara/contracts';
 import { API_PREFIX, buildServer } from './server.js';
+import { testEnv } from './test-support.js';
 
-const env = parseServerEnv({
-  NODE_ENV: 'test',
-  APP_BASE_URL: 'http://localhost:8080',
-  DATABASE_URL: 'postgresql://dhara:pw@localhost:5432/dhara',
-  REDIS_URL: 'redis://localhost:6379',
-  S3_ENDPOINT: 'http://localhost:9000',
-  S3_ACCESS_KEY_ID: 'key',
-  S3_SECRET_ACCESS_KEY: 'secret',
-  SESSION_SECRET: 'a'.repeat(32),
-  LOG_LEVEL: 'error',
-});
+const env = testEnv();
 
 let app: FastifyInstance;
 
@@ -31,12 +17,14 @@ afterAll(async () => {
 });
 
 describe('GET /api/v1/health', () => {
-  it('returns 200 with the doc 07 health contract', async () => {
+  it('returns 200 and reports what each probe actually observed', async () => {
     const response = await app.inject({ method: 'GET', url: `${API_PREFIX}/health` });
 
     expect(response.statusCode).toBe(200);
     const body = healthSchema.parse(response.json());
-    expect(body).toMatchObject({ status: 'ok', db: false, redis: false, s3: false });
+    // Redis and S3 are not running in unit tests; the point of the assertion is that the
+    // endpoint answers `degraded` instead of an optimistic `ok` when a probe fails.
+    expect(body.status).toBe(body.db && body.redis && body.s3 ? 'ok' : 'degraded');
   });
 
   it('echoes a request id on the response', async () => {

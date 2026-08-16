@@ -1,24 +1,29 @@
 import type { FastifyInstance } from 'fastify';
-import { healthSchema, type Health } from '@dhara/contracts';
+import { healthSchema, type Health, type ServerEnv } from '@dhara/contracts';
+import { createProbes, type Probes } from './probes.js';
 
 export const API_VERSION = '0.1.0';
 
 /**
- * `GET /health` — liveness plus dependency booleans (doc 07 §1, doc 10 §4).
+ * `GET /health` — liveness plus dependency probes (doc 07 §1, doc 10 §4).
  *
- * S01 returns placeholders: nothing is wired to Postgres/Redis/S3 yet, and reporting
- * `true` before a real probe exists is exactly the silent-degradation failure the demo
- * taught us to avoid. S02 replaces these with real probes and flips `status` to
- * `degraded` when a dependency is down; S07 adds provider-key presence.
+ * S02 replaces S01's placeholders with real round-trips to Postgres, Redis and S3. `status`
+ * is `degraded` when any of them is down: the endpoint reports what it actually observed,
+ * never an optimistic default. S07 adds provider-key presence — a silent no-key fallback
+ * cost the demo a day of debugging.
  */
-export async function healthRoutes(app: FastifyInstance): Promise<void> {
+export async function healthRoutes(app: FastifyInstance, opts: { env: ServerEnv }): Promise<void> {
+  const probes: Probes = createProbes(opts.env);
+  app.addHook('onClose', () => probes.close());
+
   app.get('/health', { schema: { response: { 200: healthSchema } } }, async (): Promise<Health> => {
+    const [db, redis, s3] = await Promise.all([probes.db(), probes.redis(), probes.s3()]);
     return {
-      status: 'ok',
+      status: db && redis && s3 ? 'ok' : 'degraded',
       version: API_VERSION,
-      db: false,
-      redis: false,
-      s3: false,
+      db,
+      redis,
+      s3,
     };
   });
 }

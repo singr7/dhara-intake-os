@@ -1,12 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { checkDatabase, DB_PACKAGE } from './index.js';
+import { appendOnlyModels, checkDatabase, DB_PACKAGE } from './index.js';
+import { hasTestDatabase } from './testing.js';
 
-describe('@dhara/db package boundary', () => {
+describe('@dhara/db package surface', () => {
   it('exposes its identity', () => {
     expect(DB_PACKAGE).toBe('@dhara/db');
   });
 
-  it('reports the S01 placeholder health probe as not-yet-connected', async () => {
-    await expect(checkDatabase()).resolves.toBe(false);
+  it('names the append-only tables from doc 05', () => {
+    expect([...appendOnlyModels]).toEqual(['EvidenceEvent', 'AuditEvent']);
+  });
+
+  it.runIf(hasTestDatabase)('probes a live database with a real round-trip', async () => {
+    await expect(checkDatabase()).resolves.toBe(true);
   });
 });

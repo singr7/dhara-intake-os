@@ -1,0 +1,660 @@
+// Dhara Intake OS — data model (doc 05).
+//
+// Field lists in doc 05 §2 are the required minimum: columns may be added, never
+// repurposed or dropped. Table names are snake_case (doc 05 wording); Prisma models are
+// PascalCase, mapped with @@map.
+//
+// Two structural rules are enforced in SQL, not here (see migration
+// `20260815_append_only_guards`): `evidence_events` / `audit_events` reject UPDATE and
+// DELETE, and a published `workflow_versions` row is frozen (ADR-007, ADR-010).
+
+generator client {
+  provider = "prisma-client-js"
+  // alpine runtime image (musl) needs its own query engine alongside the dev host's.
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Tenancy, users, auth (ADR-011, ADR-012)
+// ---------------------------------------------------------------------------
+
+enum TenantStatus {
+  active
+  suspended
+}
+
+model Tenant {
+  id        String       @id @default(uuid()) @db.Uuid
+  name      String
+  slug      String       @unique
+  status    TenantStatus @default(active)
+  /// branding, defaultLanguages[], retention: {audioDays, transcriptDays, structuredDays}
+  settings  Json         @default("{}")
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  users           User[]
+  workflows       Workflow[]
+  intakeSessions  IntakeSession[]
+  evidenceEvents  EvidenceEvent[]
+  fieldValues     FieldValue[]
+  consentRecords  ConsentRecord[]
+  mediaObjects    MediaObject[]
+  promptAudio     PromptAudio[]
+  costRecords     CostRecord[]
+  reviewActions   ReviewAction[]
+  exportTargets   ExportTarget[]
+  exportRecords   ExportRecord[]
+  auditEvents     AuditEvent[]
+  budgets         Budget[]
+  providerConfigs ProviderConfig[]
+  routingPolicies RoutingPolicy[]
+
+  @@map("tenants")
+}
+
+enum UserStatus {
+  active
+  disabled
+}
+
+model User {
+  id           String     @id @default(uuid()) @db.Uuid
+  tenantId     String     @db.Uuid
+  email        String
+  /// argon2id — never a plain or fast hash (doc 09 §4)
+  passwordHash String
+  name         String
+  status       UserStatus @default(active)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  roles         UserRole[]
+  platformRoles PlatformUser[]
+  authSessions  AuthSession[]
+  auditEvents   AuditEvent[]
+  reviewActions ReviewAction[]
+
+  @@unique([tenantId, email])
+  @@index([tenantId])
+  @@map("users")
+}
+
+enum TenantRole {
+  owner
+  admin
+  reviewer
+  operator
+  viewer
+}
+
+model UserRole {
+  userId String     @db.Uuid
+  role   TenantRole
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, role])
+  @@map("user_roles")
+}
+
+enum PlatformRole {
+  platformOwner
+  platformOps
+  platformSupport
+}
+
+/// Platform staff sit on a separate table (doc 05 §2) so tenant RBAC and platform
+/// privilege can never be confused for one another.
+model PlatformUser {
+  userId String       @db.Uuid
+  role   PlatformRole
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, role])
+  @@map("platform_users")
+}
+
+/// Server-side auth sessions (ADR-012). `tokenHash` is an HMAC of the cookie value keyed
+/// with SESSION_SECRET, so a database copy alone cannot be replayed as a login.
+model AuthSession {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @db.Uuid
+  tokenHash String    @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  ip        String?
+  userAgent String?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("sessions_auth")
+}
+
+// ---------------------------------------------------------------------------
+// Workflows (doc 06, ADR-007)
+// ---------------------------------------------------------------------------
+
+enum WorkflowStatus {
+  draft
+  active
+  archived
+}
+
+model Workflow {
+  id          String         @id @default(uuid()) @db.Uuid
+  tenantId    String         @db.Uuid
+  name        String
+  description String?
+  /// {packId, packVersion} when instantiated from a pack
+  packRef     Json?
+  status      WorkflowStatus @default(draft)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  tenant   Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  versions WorkflowVersion[]
+
+  @@index([tenantId])
+  @@map("workflows")
+}
+
+/// Immutable once `publishedAt` is set — enforced by a database trigger, not convention.
+model WorkflowVersion {
+  id            String    @id @default(uuid()) @db.Uuid
+  workflowId    String    @db.Uuid
+  semver        String
+  /// the DSL document (doc 06)
+  dslDocument   Json
+  /// validator output: adjacency map, precompiled ASTs, per-node metadata (S03)
+  compiledGraph Json?
+  publishedAt   DateTime?
+  publishedBy   String?   @db.Uuid
+  changelog     String?
+  createdAt     DateTime  @default(now())
+
+  workflow    Workflow        @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  sessions    IntakeSession[]
+  promptAudio PromptAudio[]
+
+  @@unique([workflowId, semver])
+  @@index([workflowId])
+  @@map("workflow_versions")
+}
+
+// ---------------------------------------------------------------------------
+// Intake sessions & the evidence graph (doc 05 §3–4, ADR-006, ADR-010)
+// ---------------------------------------------------------------------------
+
+enum SessionMode {
+  touch
+  hybrid
+  conversational
+  assisted
+}
+
+enum SessionSurface {
+  pwa
+  kiosk
+  phone
+  whatsapp
+  assisted
+}
+
+/// Doc 05 §3. Legal transitions live in the session module (S04); every transition emits
+/// `session.state_changed`. Questions may be asked only in in_progress /
+/// clarification_needed, reachable only through a granted consent (ADR-015).
+enum SessionState {
+  created
+  consent_pending
+  in_progress
+  clarification_needed
+  human_assistance_needed
+  completed
+  reviewed
+  exported
+  failed
+  abandoned
+}
+
+model IntakeSession {
+  id                String         @id @default(uuid()) @db.Uuid
+  tenantId          String         @db.Uuid
+  workflowVersionId String         @db.Uuid
+  mode              SessionMode
+  surface           SessionSurface
+  language          String
+  state             SessionState   @default(created)
+  currentNodeId     String?
+  /// answers so far + retry counters, so a refresh or network drop resumes (S04)
+  snapshot          Json           @default("{}")
+  /// external MRN/token only — we hold minimal identity (doc 09 §3)
+  patientRef        Json?
+  operatorUserId    String?        @db.Uuid
+  intakeTokenHash   String?        @unique
+  startedAt         DateTime       @default(now())
+  completedAt       DateTime?
+  reviewedAt        DateTime?
+  exportedAt        DateTime?
+  abandonReason     String?
+  costTotalPaise    Int            @default(0)
+  redFlagCount      Int            @default(0)
+  /// Monotonic evidence counter. Incremented inside the same transaction as the event
+  /// insert, so the row lock serialises concurrent writers (see evidence module).
+  eventSeq          Int            @default(0)
+
+  tenant          Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  workflowVersion WorkflowVersion @relation(fields: [workflowVersionId], references: [id])
+  events          EvidenceEvent[]
+  fieldValues     FieldValue[]
+  consentRecords  ConsentRecord[]
+  mediaObjects    MediaObject[]
+  costRecords     CostRecord[]
+  reviewActions   ReviewAction[]
+  exportRecords   ExportRecord[]
+
+  @@index([tenantId, state])
+  @@index([workflowVersionId])
+  @@map("intake_sessions")
+}
+
+enum EvidenceActorKind {
+  system
+  patient
+  operator
+  provider
+}
+
+/// Append-only (ADR-010). Corrections are new events; nothing is ever updated or deleted.
+/// `type` is a string rather than a Prisma enum because the taxonomy values contain dots
+/// (`session.created`); the authoritative list is `evidenceEventTypes` in @dhara/contracts
+/// and every write is validated against it.
+model EvidenceEvent {
+  id        String   @id @default(uuid()) @db.Uuid
+  sessionId String   @db.Uuid
+  tenantId  String   @db.Uuid
+  seq       Int
+  type      String
+  payload   Json     @default("{}")
+  /// {kind: system|patient|operator|provider, id?}
+  actor     Json
+  createdAt DateTime @default(now())
+
+  tenant  Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  session IntakeSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, seq])
+  @@index([sessionId, createdAt])
+  @@index([tenantId, type])
+  @@map("evidence_events")
+}
+
+enum FieldValueStatus {
+  committed
+  corrected
+  reviewOverridden
+}
+
+/// Projection over the event stream — rebuildable, therefore mutable.
+model FieldValue {
+  id                 String           @id @default(uuid()) @db.Uuid
+  tenantId           String           @db.Uuid
+  sessionId          String           @db.Uuid
+  fieldKey           String
+  value              Json
+  valueType          String
+  confidence         Float?
+  /// {eventIds[], transcript?, audioObjectId?, method: touch|voice|assisted|inferred}
+  provenance         Json
+  confirmedByPatient Boolean          @default(false)
+  correctedBy        String?          @db.Uuid
+  status             FieldValueStatus @default(committed)
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  tenant  Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  session IntakeSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, fieldKey])
+  @@index([tenantId])
+  @@map("field_values")
+}
+
+enum ConsentMethod {
+  touch
+  voice
+  operator
+}
+
+model ConsentRecord {
+  id             String        @id @default(uuid()) @db.Uuid
+  tenantId       String        @db.Uuid
+  sessionId      String        @db.Uuid
+  purposeVersion String
+  language       String
+  method         ConsentMethod
+  granted        Boolean
+  /// the exact text the patient was shown, stored verbatim (doc 09 §2)
+  textShown      String
+  audioObjectId  String?       @db.Uuid
+  createdAt      DateTime      @default(now())
+
+  tenant  Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  session IntakeSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@index([tenantId])
+  @@map("consent_records")
+}
+
+// ---------------------------------------------------------------------------
+// Media, prompt audio, cost (doc 05 §2, ADR-016)
+// ---------------------------------------------------------------------------
+
+enum MediaKind {
+  promptAudio
+  responseAudio
+  document
+  export
+}
+
+enum RetentionClass {
+  audio
+  document
+  export
+}
+
+model MediaObject {
+  id             String         @id @default(uuid()) @db.Uuid
+  tenantId       String         @db.Uuid
+  sessionId      String?        @db.Uuid
+  kind           MediaKind
+  s3Key          String         @unique
+  mime           String
+  bytes          Int
+  sha256         String
+  retentionClass RetentionClass
+  createdAt      DateTime       @default(now())
+  /// soft delete first, hard-delete job second (doc 05 §6)
+  deletedAt      DateTime?
+
+  tenant      Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  session     IntakeSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  promptAudio PromptAudio[]
+
+  @@index([tenantId, retentionClass, createdAt])
+  @@index([sessionId])
+  @@map("media_objects")
+}
+
+enum PromptAudioSource {
+  recorded
+  tts
+}
+
+/// Addressed by (nodeId, lang, voice, contentHash) so TTS is rendered once, ever (ADR-016).
+/// `tenantId` / `workflowVersionId` are null for platform-shared prompt audio.
+model PromptAudio {
+  id                String            @id @default(uuid()) @db.Uuid
+  tenantId          String?           @db.Uuid
+  workflowVersionId String?           @db.Uuid
+  nodeId            String
+  lang              String
+  voice             String
+  source            PromptAudioSource
+  contentHash       String
+  mediaObjectId     String            @db.Uuid
+  createdAt         DateTime          @default(now())
+
+  tenant          Tenant?          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  workflowVersion WorkflowVersion? @relation(fields: [workflowVersionId], references: [id], onDelete: Cascade)
+  mediaObject     MediaObject      @relation(fields: [mediaObjectId], references: [id], onDelete: Cascade)
+
+  @@unique([workflowVersionId, nodeId, lang, voice, contentHash])
+  @@map("prompt_audio")
+}
+
+enum CostKind {
+  stt
+  llm
+  tts
+  realtime
+  telephony
+  notification
+}
+
+model CostRecord {
+  id        String   @id @default(uuid()) @db.Uuid
+  tenantId  String   @db.Uuid
+  sessionId String?  @db.Uuid
+  stepSeq   Int?
+  provider  String
+  model     String
+  kind      CostKind
+  /// tokens / seconds / chars
+  units     Json     @default("{}")
+  costPaise Int
+  latencyMs Int?
+  createdAt DateTime @default(now())
+
+  tenant  Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  session IntakeSession? @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, createdAt])
+  @@index([sessionId])
+  @@map("cost_records")
+}
+
+// ---------------------------------------------------------------------------
+// Review & export (doc 05 §2, doc 09 §5)
+// ---------------------------------------------------------------------------
+
+enum ReviewActionKind {
+  approve
+  correct
+  return
+  escalate
+}
+
+model ReviewAction {
+  id        String           @id @default(uuid()) @db.Uuid
+  tenantId  String           @db.Uuid
+  sessionId String           @db.Uuid
+  userId    String           @db.Uuid
+  action    ReviewActionKind
+  fieldKey  String?
+  before    Json?
+  after     Json?
+  note      String?
+  createdAt DateTime         @default(now())
+
+  tenant  Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  session IntakeSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user    User          @relation(fields: [userId], references: [id])
+
+  @@index([sessionId])
+  @@index([tenantId, createdAt])
+  @@map("review_actions")
+}
+
+enum ExportTargetKind {
+  webhook
+  pdf
+  sheets
+  whatsapp
+  emr
+}
+
+model ExportTarget {
+  id        String           @id @default(uuid()) @db.Uuid
+  tenantId  String           @db.Uuid
+  kind      ExportTargetKind
+  config    Json             @default("{}")
+  /// indirection only — secrets never live in the database (doc 09 §4)
+  secretRef String?
+  active    Boolean          @default(true)
+  createdAt DateTime         @default(now())
+
+  tenant  Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  records ExportRecord[]
+
+  @@index([tenantId])
+  @@map("export_targets")
+}
+
+enum ExportStatus {
+  pending
+  sent
+  failed
+}
+
+model ExportRecord {
+  id           String       @id @default(uuid()) @db.Uuid
+  tenantId     String       @db.Uuid
+  sessionId    String       @db.Uuid
+  targetId     String       @db.Uuid
+  status       ExportStatus @default(pending)
+  attempt      Int          @default(0)
+  responseMeta Json?
+  payloadHash  String?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  tenant  Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  session IntakeSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  target  ExportTarget  @relation(fields: [targetId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@index([tenantId, status])
+  @@map("export_records")
+}
+
+// ---------------------------------------------------------------------------
+// Platform audit, budgets, provider config, packs
+// ---------------------------------------------------------------------------
+
+/// Append-only, and deliberately distinct from the evidence graph: this records what
+/// *staff* did (logins, session views, exports, deletions, key changes — doc 09 §4).
+model AuditEvent {
+  id        String   @id @default(uuid()) @db.Uuid
+  tenantId  String?  @db.Uuid
+  userId    String?  @db.Uuid
+  action    String
+  objectRef Json     @default("{}")
+  ip        String?
+  createdAt DateTime @default(now())
+
+  tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, createdAt])
+  @@index([userId, createdAt])
+  @@map("audit_events")
+}
+
+model Budget {
+  id            String   @id @default(uuid()) @db.Uuid
+  tenantId      String   @db.Uuid
+  /// ISO month, e.g. "2026-08"
+  period        String
+  capPaise      Int      @default(0)
+  softAlertPct  Int      @default(80)
+  hardStop      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, period])
+  @@map("budgets")
+}
+
+enum ConfigScope {
+  platform
+  tenant
+}
+
+enum ProviderKind {
+  stt
+  llm
+  tts
+  realtime
+  telephony
+  notification
+}
+
+model ProviderConfig {
+  id             String       @id @default(uuid()) @db.Uuid
+  scope          ConfigScope
+  tenantId       String?      @db.Uuid
+  kind           ProviderKind
+  provider       String
+  model          String
+  /// env/secret-manager key name — never the credential itself (doc 09 §4)
+  credentialsRef String?
+  langs          String[]     @default([])
+  priority       Int          @default(100)
+  active         Boolean      @default(true)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([scope, kind, active])
+  @@map("provider_configs")
+}
+
+model RoutingPolicy {
+  id        String      @id @default(uuid()) @db.Uuid
+  scope     ConfigScope
+  tenantId  String?     @db.Uuid
+  /// doc 08 §4
+  rules     Json        @default("{}")
+  active    Boolean     @default(true)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([scope, active])
+  @@map("routing_policies")
+}
+
+/// Platform-global; instantiated into tenant workflows (doc 05 §1).
+model Pack {
+  id          String  @id @default(uuid()) @db.Uuid
+  key         String  @unique
+  name        String
+  domain      String
+  description String?
+
+  versions PackVersion[]
+
+  @@map("packs")
+}
+
+model PackVersion {
+  id             String    @id @default(uuid()) @db.Uuid
+  packId         String    @db.Uuid
+  semver         String
+  dslDocument    Json
+  promptManifest Json      @default("{}")
+  changelog      String?
+  publishedAt    DateTime?
+  createdAt      DateTime  @default(now())
+
+  pack Pack @relation(fields: [packId], references: [id], onDelete: Cascade)
+
+  @@unique([packId, semver])
+  @@map("pack_versions")
+}

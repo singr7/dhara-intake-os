@@ -42,3 +42,66 @@ Contracts in docs 05–08 are binding — a deviation must preserve them (protoc
   lockfile are absent from the build context.
 - **Cost:** slightly larger build context and non-minimal runtime images for api/worker.
   Revisit with `pnpm deploy --prod` when image size matters (M6 pilot hardening).
+
+## S02
+
+### D-005 — Append-only enforced by triggers, not by revoking role privileges
+
+- **Plan:** S02 task 2 offers a choice: "DB-level (revoke UPDATE/DELETE from app role) or
+  Prisma-extension guard".
+- **Done:** `BEFORE UPDATE OR DELETE` triggers on `evidence_events` and `audit_events`, plus a
+  frozen-row trigger on published `workflow_versions`. The Prisma extension is kept as a
+  second layer that fails at the call site with a readable message.
+- **Why:** a revoke binds one role. The moment a migration, a psql session, or a future
+  service connects as anyone else, the guarantee is silently gone — and a permission error
+  does not explain itself. A trigger is attached to the table and holds for every connection,
+  superuser included.
+- **Cost:** the retention worker (S17) must redact transcript payloads in place (doc 05 §6),
+  which the trigger forbids. A single narrow escape hatch exists for it:
+  `SET LOCAL dhara.append_only_override = 'on'` inside its own transaction. No other code may
+  emit that statement; enforce in review.
+
+### D-006 — `evidence_events.type` is a string column, not a Prisma enum
+
+- **Plan:** doc 05 §4 defines a fixed taxonomy.
+- **Done:** `type String`, validated on every write against `evidenceEventTypes` in
+  `@dhara/contracts`.
+- **Why:** the taxonomy values contain dots (`session.created`), which Postgres/Prisma enum
+  identifiers cannot hold. Renaming them to fit the database would have made the wire
+  contract and the storage disagree.
+- **Cost:** integrity is enforced in the application rather than the column type. Mitigated by
+  `emitEvent` being the only write path and by tests over the full taxonomy.
+
+### D-007 — Tenant scoping covers models with a _required_ `tenantId` only
+
+- **Plan:** ADR-011 — "all queries auto-filtered by `tenant_id`".
+- **Done:** the scoped set is derived from the Prisma DMMF: a model is filtered exactly when it
+  has a non-nullable `tenantId`. `prompt_audio`, `provider_configs` and `routing_policies` hold
+  platform-shared rows alongside tenant rows (nullable `tenantId`) and are excluded; `packs` /
+  `pack_versions` are platform-global with no tenant column.
+- **Why:** a blanket filter on the dual-scope tables would hide the platform-shared rows from
+  every tenant, which is what those tables exist to provide. Deriving the set from the schema
+  rather than a hand-kept list means new tables inherit protection automatically.
+- **Cost:** queries against the three dual-scope tables must filter explicitly
+  (`tenantId: { in: [current, null] }`). Revisit at S07/S19 when they are first written to.
+
+### D-008 — Relation `include`/`select` traversals are not re-filtered
+
+- **Plan:** none (implementation detail of ADR-011).
+- **Done:** the extension filters top-level operations. Rows reached through a relation
+  (`authSession.findUnique({ select: { user: … } })`) are not filtered again.
+- **Why:** Prisma runs a nested read as part of one query, so extension hooks do not see it.
+  In practice the relation _is_ the boundary — reaching a row requires already holding a row
+  legitimately linked to it — and the alternative (banning `include` entirely) would push
+  callers toward raw queries, which are worse.
+- **Cost:** a relation from a non-scoped model into a scoped one could cross tenants. Today the
+  only such path is `AuthSession → User`, which is the intended one. Any new relation from a
+  non-scoped model must be reviewed against this.
+
+### D-009 — Login rate limiting is per API process
+
+- **Plan:** doc 09 §4 — "rate limiting: per-IP on auth".
+- **Done:** `@fastify/rate-limit` with its default in-memory store.
+- **Why:** one API container until M6; a Redis store is configuration, not redesign.
+- **Cost:** with several API replicas the effective limit multiplies by replica count. Switch
+  to the Redis store at S24 (load + failure hardening), where the multi-replica setup lands.

@@ -31,6 +31,15 @@ export const serverEnvSchema = z.object({
 
   // Signs server-side auth cookies (ADR-012) and short-lived intake tokens.
   SESSION_SECRET: z.string().min(32, 'SESSION_SECRET must be at least 32 characters'),
+  /** Staff console session lifetime. A clinic shift is the unit that matters here. */
+  SESSION_TTL_HOURS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .max(24 * 30)
+    .default(12),
+  /** Failed-login attempts allowed per IP per minute before 429 (doc 09 §4). */
+  LOGIN_RATE_LIMIT_PER_MINUTE: z.coerce.number().int().positive().default(10),
 
   API_PORT: z.coerce.number().int().positive().default(3001),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
