@@ -276,11 +276,28 @@ Nothing from S01 is left open.
   applied). Prefer `guarded` for platform writes; `prisma` is for reads, migrations and the
   auth session lookup that must run before a tenant context exists.
 
+### Two things CI caught that a warm checkout hid
+
+Both were fixed in follow-up commits on `main`; the run is green including all four images.
+
+1. **`@prisma/client` is a stub until `prisma generate` runs.** The db package's `test` task
+   depended on its _dependencies'_ builds, not its own, so tenant scoping read its model
+   list out of an empty DMMF and every db test died at module load. Generation now happens
+   on `postinstall` (and again before the db tests), and the DMMF read fails with a message
+   naming the fix rather than a `TypeError`. Anything else that reads generated artifacts at
+   import time needs the same care.
+2. **React types resolved differently on CI** (D-010). Two React majors coexist by design and
+   pnpm hoists one `@types/react`; next's `.d.ts` files pick up whichever won, and CI picked
+   the other one. Both frontends now pin `react` / `react-dom` in tsconfig `paths`. A stray
+   `tsconfig.tsbuildinfo` masked the failure on local re-runs — worth remembering the next
+   time something reproduces only in CI.
+
 ### Deviations
 
 D-005 triggers over role revocation; D-006 `evidence_events.type` as a string column;
 D-007 scoping covers required-`tenantId` models only; D-008 relation traversals unfiltered;
-D-009 in-process login rate limit. Details in [`DEVIATIONS.md`](DEVIATIONS.md).
+D-009 in-process login rate limit; D-010 React types pinned per app. Details in
+[`DEVIATIONS.md`](DEVIATIONS.md).
 
 ### Next — S03 (workflow DSL package: parser, validator, compiler)
 
